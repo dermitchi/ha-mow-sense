@@ -297,3 +297,82 @@ def error_text(code: int | None, names: dict[int, str]) -> str:
     if key.startswith("temporary_battery_problem"):
         return "Vorübergehendes Akkuproblem"
     return key.replace("_", " ").capitalize()
+
+
+# --- rain guard ------------------------------------------------------------
+
+RAIN_CONDITIONS = {"rainy", "pouring", "lightning-rainy", "hail", "snowy-rainy"}
+RAIN_MM = 0.2  # mm per hour that counts as rain
+
+
+@dataclass(frozen=True)
+class RainState:
+    raining: bool = False
+    next_rain: datetime | None = None  # start of the next rain (now if raining)
+    rain_end: datetime | None = None  # end of that rain spell
+    blocked_until: datetime | None = None  # rain or wet grass until then
+    leave_by: datetime | None = None  # be home before this (next_rain - lead)
+
+    def blocked(self, now: datetime) -> bool:
+        return self.blocked_until is not None and now < self.blocked_until
+
+    def can_start(self, now: datetime, min_run: timedelta) -> bool:
+        """Dry now and enough time before the next rain."""
+        if self.blocked(now):
+            return False
+        return self.leave_by is None or self.leave_by - now >= min_run
+
+    def must_go_home(self, now: datetime) -> bool:
+        return self.raining or (self.leave_by is not None and now >= self.leave_by)
+
+    def status(self, now: datetime, lead: timedelta) -> str:
+        if self.raining:
+            return "raining"
+        if self.blocked(now):
+            return "drying"
+        if self.next_rain is not None and self.next_rain - now <= lead + timedelta(hours=1):
+            return "rain_soon"
+        return "clear"
+
+
+def _is_rain(entry: dict) -> bool:
+    return entry.get("condition") in RAIN_CONDITIONS or (entry.get("precipitation") or 0) >= RAIN_MM
+
+
+def rain_spells(forecast: list[dict], parse) -> list[tuple[datetime, datetime]]:
+    """Hourly forecast -> merged (start, end) spells of rain."""
+    spells: list[list[datetime]] = []
+    for entry in forecast:
+        if not _is_rain(entry):
+            continue
+        start = parse(entry["datetime"])
+        end = start + timedelta(hours=1)
+        if spells and spells[-1][1] >= start:
+            spells[-1][1] = max(spells[-1][1], end)
+        else:
+            spells.append([start, end])
+    return [(s, e) for s, e in spells]
+
+
+def rain_state(
+    now: datetime,
+    raining_now: bool,
+    spells: list[tuple[datetime, datetime]],
+    last_rain_end: datetime | None,
+    lead: timedelta,
+    dry: timedelta,
+) -> RainState:
+    current = next(((s, e) for s, e in spells if s <= now < e), None)
+    if raining_now and current is None:
+        current = (now, now + timedelta(hours=1))  # it rains although not forecast
+    if current:
+        end = current[1]
+        for s, e in spells:  # rain continuing right after
+            if s <= end:
+                end = max(end, e)
+        return RainState(True, now, end, end + dry, now)
+    upcoming = next(((s, e) for s, e in spells if s > now), None)
+    blocked = last_rain_end + dry if last_rain_end and now < last_rain_end + dry else None
+    if upcoming is None:
+        return RainState(False, None, None, blocked, None)
+    return RainState(False, upcoming[0], upcoming[1], blocked, upcoming[0] - lead)

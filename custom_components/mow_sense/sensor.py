@@ -120,7 +120,8 @@ async def async_setup_entry(
 ) -> None:
     c = entry.runtime_data
     add([Sensor(c, desc) for desc in SENSORS]
-        + [Schedule(c, "schedule"), LastContact(c, "last_contact"), BladeHours(c, "blade_hours"), BladeChanged(c, "blade_changed_at")])
+        + [Schedule(c, "schedule"), LastContact(c, "last_contact"), BladeHours(c, "blade_hours"), BladeChanged(c, "blade_changed_at"),
+           RainGuard(c, "rain_guard")])
 
 
 class Sensor(MowSenseEntity, SensorEntity):
@@ -219,3 +220,29 @@ class BladeChanged(MowSenseEntity, SensorEntity):
     def native_value(self):
         value = self.coordinator.prefs["blade_changed"]
         return dt_util.parse_datetime(value) if value else None
+
+
+class RainGuard(MowSenseEntity, SensorEntity):
+    """off | clear | rain_soon | raining | drying"""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["off", "clear", "rain_soon", "raining", "drying"]
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def native_value(self) -> str:
+        return self.coordinator.rain_status()
+
+    @property
+    def extra_state_attributes(self):
+        r = self.coordinator.rain
+        return {
+            "next_rain": r.next_rain,
+            "rain_end": r.rain_end,
+            "dry_from": r.blocked_until,
+            "home_by": r.leave_by,
+            "waiting_until": (self.coordinator.prefs.get("pending") or {}).get("until"),
+        }

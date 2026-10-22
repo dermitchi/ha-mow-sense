@@ -55,11 +55,16 @@
           "schedule_entity": "Zeitplan-Helfer",
           "active_interval": "Abfrage beim Mähen",
           "idle_interval": "Abfrage in der Station",
-          "grace_minutes": "Letzte Werte behalten ohne Kontakt"
+          "grace_minutes": "Letzte Werte behalten ohne Kontakt",
+          "weather_entity": "Wetter (Regenschutz)",
+          "rain_lead_minutes": "Zuhause vor Regen",
+          "rain_dry_minutes": "Trockenzeit nach Regen",
+          "min_run_minutes": "Kürzester lohnender Lauf"
         },
         "data_description": {
           "schedule_entity": "Optional. Ein Zeitplan-Helfer, dessen Zeitblöcke in den Mäher geschrieben werden. Was die Gardena-App oder sonst etwas einträgt, wird überschrieben. Leer = Zeitplan im Mäher nicht anfassen.",
-          "grace_minutes": "Bluetooth bricht ab und zu ab. Live-Werte bleiben so lange stehen, bis so lange kein Kontakt war."
+          "grace_minutes": "Bluetooth bricht ab und zu ab. Live-Werte bleiben so lange stehen, bis so lange kein Kontakt war.",
+          "weather_entity": "Stündliche Vorhersage. Bei angesagtem Regen fährt er nicht los, ist vor Regenbeginn zuhause und mäht danach weiter, wenn es trocken ist und sich noch lohnt. Leer = aus."
         }
       }
     }
@@ -173,6 +178,33 @@
       },
       "blade_changed_at": {
         "name": "Messer gewechselt am"
+      },
+      "rain_guard": {
+        "name": "Regenschutz",
+        "state": {
+          "off": "Aus",
+          "clear": "Trocken",
+          "rain_soon": "Regen bald",
+          "raining": "Regnet",
+          "drying": "Trocknet"
+        },
+        "state_attributes": {
+          "next_rain": {
+            "name": "Nächster Regen"
+          },
+          "rain_end": {
+            "name": "Regen endet"
+          },
+          "dry_from": {
+            "name": "Trocken ab"
+          },
+          "home_by": {
+            "name": "Zuhause bis"
+          },
+          "waiting_until": {
+            "name": "Wartet aufs Mähen bis"
+          }
+        }
       }
     },
     "binary_sensor": {
@@ -233,6 +265,10 @@
         "hours": {
           "name": "Stunden",
           "description": "Standard: Einstellung „Mähdauer beim Start“."
+        },
+        "ignore_rain": {
+          "name": "Regen ignorieren",
+          "description": "Auch bei angesagtem Regen starten."
         }
       }
     },

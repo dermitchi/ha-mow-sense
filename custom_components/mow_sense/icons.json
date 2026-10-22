@@ -45,6 +45,14 @@
       },
       "blade_changed_at": {
         "default": "mdi:calendar-check"
+      },
+      "rain_guard": {
+        "default": "mdi:weather-rainy",
+        "state": {
+          "clear": "mdi:weather-sunny",
+          "off": "mdi:umbrella-closed-outline",
+          "drying": "mdi:water-off-outline"
+        }
       }
     },
     "switch": {

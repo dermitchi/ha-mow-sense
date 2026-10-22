@@ -11,6 +11,10 @@ mow:
           max: 18
           step: 0.25
           unit_of_measurement: h
+    ignore_rain:
+      default: false
+      selector:
+        boolean:
 park:
   target:
     entity:

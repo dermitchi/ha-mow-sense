@@ -27,7 +27,15 @@ from .const import (
     CONF_ACTIVE_INTERVAL,
     CONF_GRACE_MINUTES,
     CONF_IDLE_INTERVAL,
+    CONF_MIN_RUN,
+    CONF_RAIN_DRY,
+    CONF_RAIN_LEAD,
     CONF_SCHEDULE_ENTITY,
+    CONF_WEATHER_ENTITY,
+    DEFAULT_MIN_RUN,
+    DEFAULT_RAIN_DRY,
+    DEFAULT_RAIN_LEAD,
+    FORECAST_EVERY,
     DEFAULT_ACTIVE_INTERVAL,
     DEFAULT_BLADE_HOURS,
     DEFAULT_GRACE_MINUTES,
@@ -99,7 +107,12 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
             "blade_interval": DEFAULT_BLADE_HOURS,
             "blade_changed": None,  # ISO time of the last blade change
             "blade_base": None,  # total cutting hours at that change
+            "pending": None,  # {"until": iso} – HA wants a run, waiting for dry weather
+            "last_rain_end": None,  # iso
         }
+        self.rain = logic.RainState()
+        self._forecast_at = 0.0
+        self._spells: list = []
         self._slow_at = 0.0
         self._tasks_at = 0.0
         self._schedule_attempts = 0
@@ -257,6 +270,7 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
             self.prefs["blade_base"] = round(d.cutting_hours, 2)
             await self.save_prefs()
 
+        await self._rain_guard(m, d)
         await self._enforce_mode(m, d)
         await self._enforce_schedule(m, d, now_mono)
 
@@ -384,9 +398,24 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
             raise HomeAssistantError(str(err)) from err
         await self.async_request_refresh()
 
-    async def start_mowing(self, hours: float | None = None) -> None:
+    async def start_mowing(self, hours: float | None = None, ignore_rain: bool = False) -> None:
         hours = hours or self.prefs["mow_hours"]
+        if not ignore_rain and self.rain_enabled:
+            await self._update_rain()
+            now = dt_util.utcnow()
+            if not self.rain.can_start(now, self.min_run):
+                # Rain now/soon: remember the wish, start once it is dry and still worth it.
+                self.prefs["pending"] = {"until": (now + timedelta(hours=hours)).isoformat()}
+                await self.save_prefs()
+                LOGGER.info("Regen – Start wartet bis %s", self.prefs["pending"]["until"])
+                self._correction("rain_wait", "Regen angesagt: Start wartet auf trockenes Wetter", False)
+                self.async_update_listeners()
+                return
+        self.prefs["pending"] = None
+        await self.save_prefs()
+        await self.command(self._start_work(hours))
 
+    def _start_work(self, hours: float):
         async def work(m: Mower) -> None:
             state = await ask(m, "GetState")
             activity = await ask(m, "GetActivity")
@@ -397,7 +426,7 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
             await ask(m, "SetOverrideMow", duration=int(hours * 3600))
             await ask(m, "StartTrigger")
 
-        await self.command(work)
+        return work
 
     async def pause(self) -> None:
         await self.command(lambda m: ask(m, "Pause"))
@@ -474,3 +503,107 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
         self.prefs["blade_base"] = round(hours, 2) if hours is not None else None
         await self.save_prefs()
         self.async_update_listeners()
+
+    # --- rain guard ------------------------------------------------------------------
+
+    @property
+    def rain_enabled(self) -> bool:
+        return bool(self._opt(CONF_WEATHER_ENTITY, None))
+
+    @property
+    def min_run(self) -> timedelta:
+        return timedelta(minutes=self._opt(CONF_MIN_RUN, DEFAULT_MIN_RUN))
+
+    async def _update_rain(self) -> None:
+        entity_id = self._opt(CONF_WEATHER_ENTITY, None)
+        if not entity_id:
+            self.rain = logic.RainState()
+            return
+        if time.monotonic() - self._forecast_at >= FORECAST_EVERY or not self._forecast_at:
+            try:
+                resp = await self.hass.services.async_call(
+                    "weather", "get_forecasts", {"type": "hourly"},
+                    target={"entity_id": entity_id}, blocking=True, return_response=True,
+                )
+                self._spells = logic.rain_spells(resp[entity_id]["forecast"], dt_util.parse_datetime)
+                self._forecast_at = time.monotonic()
+            except (HomeAssistantError, KeyError) as err:
+                LOGGER.warning("Wettervorhersage nicht lesbar: %s", err)
+        state = self.hass.states.get(entity_id)
+        raining_now = state is not None and state.state in logic.RAIN_CONDITIONS
+        now = dt_util.utcnow()
+        last_end = self.prefs["last_rain_end"]
+        new = logic.rain_state(
+            now, raining_now, self._spells,
+            dt_util.parse_datetime(last_end) if last_end else None,
+            timedelta(minutes=self._opt(CONF_RAIN_LEAD, DEFAULT_RAIN_LEAD)),
+            timedelta(minutes=self._opt(CONF_RAIN_DRY, DEFAULT_RAIN_DRY)),
+        )
+        if self.rain.raining and not new.raining:
+            self.prefs["last_rain_end"] = now.isoformat()
+            await self.save_prefs()
+            new = logic.rain_state(
+                now, False, self._spells, now,
+                timedelta(minutes=self._opt(CONF_RAIN_LEAD, DEFAULT_RAIN_LEAD)),
+                timedelta(minutes=self._opt(CONF_RAIN_DRY, DEFAULT_RAIN_DRY)),
+            )
+        self.rain = new
+
+    def rain_status(self) -> str:
+        if not self.rain_enabled:
+            return "off"
+        return self.rain.status(dt_util.utcnow(), timedelta(minutes=self._opt(CONF_RAIN_LEAD, DEFAULT_RAIN_LEAD)))
+
+    async def _rain_guard(self, m: Mower, d: MowerData) -> None:
+        if not self.rain_enabled:
+            return
+        await self._update_rain()
+        now = dt_util.utcnow()
+        r = self.rain
+        park_until = r.blocked_until or (r.rain_end + timedelta(minutes=self._opt(CONF_RAIN_DRY, DEFAULT_RAIN_DRY)) if r.rain_end else None)
+        mower_now = self.mower_now()
+
+        # 1. Out mowing and rain is (nearly) here: home now, resume later.
+        if d.activity in (logic.ACT_GOING_OUT, logic.ACT_MOWING) and r.must_go_home(now):
+            if d.override.action == logic.OVERRIDE_MOW and d.override.active(mower_now):
+                end = now + timedelta(seconds=d.override.start + d.override.duration - mower_now)
+                self.prefs["pending"] = {"until": end.isoformat()}
+                await self.save_prefs()
+            if self.prefs["automatic"] and park_until:
+                await ask(m, "SetOverridePark", duration=max(60, int((park_until - now).total_seconds())))
+            else:
+                await ask(m, "SetMode", mode=logic.MODE_HOME)
+                d.mode = logic.MODE_HOME
+            await ask(m, "StartTrigger")
+            self._correction("rain", "Regen: Rasi fährt heim", True)
+            return
+
+        # 2. In the station on its own schedule: keep it there while it rains / is wet.
+        docked = d.activity in (logic.ACT_CHARGING, logic.ACT_PARKED)
+        if (
+            docked
+            and self.prefs["automatic"]
+            and park_until
+            and not r.can_start(now, self.min_run)
+            and d.override.action != logic.OVERRIDE_PARK
+            and d.next_start is not None
+            and d.next_start <= park_until
+        ):
+            await ask(m, "SetOverridePark", duration=max(60, int((park_until - now).total_seconds())))
+            self._correction("rain", "Regen: Rasi bleibt in der Station", False)
+            return
+
+        # 3. HA wanted a run (or one was interrupted): start once dry and still worth it.
+        pending = self.prefs["pending"]
+        if pending:
+            until = dt_util.parse_datetime(pending["until"])
+            if until - now < self.min_run:
+                self.prefs["pending"] = None
+                await self.save_prefs()
+                self._correction("rain_gave_up", "Regen: Mähen heute ausgefallen, lohnt sich nicht mehr", False)
+            elif docked and r.can_start(now, self.min_run):
+                hours = round((until - now).total_seconds() / 3600, 2)
+                self.prefs["pending"] = None
+                await self.save_prefs()
+                await self._start_work(hours)(m)
+                self._correction("rain_resume", f"Trocken: Rasi mäht noch {hours:.1f} h", False)

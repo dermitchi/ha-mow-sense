@@ -107,7 +107,7 @@ class FakeMower:
             "GetMode": s["mode"],
             "GetError": 0,
             "GetOverride": {"action": s["override"][0], "startTime": s["override"][1], "duration": s["override"][2]},
-            "GetNextStartTime": 0,
+            "GetNextStartTime": s.get("next_start", 0),
             "GetRemainingChargingTime": 1200,
             "GetAllStatistics": {"totalRunningTime": 36000, "totalCuttingTime": 30000, "totalChargingTime": 1,
                                  "totalSearchingTime": 1, "numberOfCollisions": 5, "numberOfChargingCycles": 7,
@@ -133,6 +133,8 @@ class FakeMower:
             s["pending"].append(logic.Task(kw["start"], kw["duration"], days))
         elif name == "CommitTaskTransaction":
             s["tasks"] = s.pop("pending")
+        elif name == "SetOverridePark":
+            s["override"] = (logic.OVERRIDE_PARK, logic.to_mower_time(dt_util.now()), kw["duration"])
         elif name == "SetOverrideMow":
             s["override"] = (logic.OVERRIDE_MOW, logic.to_mower_time(dt_util.now()), kw["duration"])
         return None
@@ -325,3 +327,66 @@ async def test_blade_counter(hass):
     await hass.services.async_call("number", "set_value", {"entity_id": "number.sileno_minimo_250_change_blades_every", "value": 150}, blocking=True)
     assert hass.states.get("binary_sensor.sileno_minimo_250_blade_change_due").state == "off"
     assert hass.states.get("sensor.sileno_minimo_250_blades_since_change").attributes["remaining"] == 30.0
+
+
+def _weather(hass, rainy_hours_from_now=(), now_state="sunny"):
+    """Fake hourly forecast: list of hour offsets with rain."""
+    from homeassistant.core import SupportsResponse
+
+    base = dt_util.utcnow().replace(minute=0, second=0, microsecond=0)
+    hass.states.async_set("weather.test", now_state)
+
+    async def get_forecasts(call):
+        return {"weather.test": {"forecast": [
+            {"datetime": (base + timedelta(hours=h)).isoformat(), "condition": "rainy" if h in rainy_hours_from_now else "sunny",
+             "precipitation": 2.0 if h in rainy_hours_from_now else 0.0} for h in range(24)]}}
+
+    hass.services.async_register("weather", "get_forecasts", get_forecasts, supports_response=SupportsResponse.ONLY)
+
+
+RAIN_OPTS = {"weather_entity": "weather.test", "rain_lead_minutes": 30, "rain_dry_minutes": 60, "min_run_minutes": 45}
+
+
+async def test_rain_sends_mower_home(hass):
+    _weather(hass, rainy_hours_from_now=(0, 1), now_state="rainy")
+    FakeMower.state.update(state=logic.STATE_IN_OPERATION, activity=logic.ACT_MOWING, charging=False)
+    entry = await _setup(hass, RAIN_OPTS)
+    assert ("StartTrigger", {}) in FakeMower.log
+    assert any(c == "SetOverridePark" for c in _cmds())  # Automatik on: park, schedule resumes later
+    assert hass.states.get("sensor.sileno_minimo_250_rain_guard").state == "raining"
+
+
+async def test_start_waits_for_dry_weather_then_resumes(hass):
+    _weather(hass, rainy_hours_from_now=(0,), now_state="rainy")
+    entry = await _setup(hass, RAIN_OPTS)
+    c = entry.runtime_data
+    FakeMower.log.clear()
+    await c.start_mowing(4)
+    assert "SetOverrideMow" not in _cmds()
+    assert c.prefs["pending"]
+    # rain over, dry time passed
+    _weather(hass, rainy_hours_from_now=())
+    c._forecast_at = 0
+    c.prefs["last_rain_end"] = (dt_util.utcnow() - timedelta(hours=2)).isoformat()
+    c.rain = logic.RainState()
+    await c.async_refresh()
+    assert "SetOverrideMow" in _cmds()
+    assert c.prefs["pending"] is None
+
+
+async def test_no_start_if_rain_soon(hass):
+    _weather(hass, rainy_hours_from_now=(1,))  # rain in < 1 h: leave_by within 30 min
+    entry = await _setup(hass, RAIN_OPTS)
+    FakeMower.log.clear()
+    await entry.runtime_data.start_mowing(3)
+    assert "SetOverrideMow" not in _cmds()
+    await entry.runtime_data.start_mowing(3, ignore_rain=True)
+    assert "SetOverrideMow" in _cmds()
+
+
+async def test_station_keeps_mower_when_schedule_start_in_rain(hass):
+    _weather(hass, rainy_hours_from_now=(0, 1), now_state="rainy")
+    FakeMower.state["next_start"] = logic.to_mower_time(dt_util.now() + timedelta(minutes=20))
+    entry = await _setup(hass, RAIN_OPTS)
+    assert "SetOverridePark" in _cmds()
+    assert "StartTrigger" not in _cmds()

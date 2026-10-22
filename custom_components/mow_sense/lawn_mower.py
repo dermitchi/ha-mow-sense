@@ -26,7 +26,10 @@ async def async_setup_entry(
     platform = entity_platform.async_get_current_platform()
     platform.async_register_entity_service(
         "mow",
-        {vol.Optional("hours"): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=18))},
+        {
+            vol.Optional("hours"): vol.All(vol.Coerce(float), vol.Range(min=0.25, max=18)),
+            vol.Optional("ignore_rain", default=False): cv.boolean,
+        },
         "async_mow",
     )
     platform.async_register_entity_service(
@@ -58,6 +61,7 @@ class MowSenseMower(MowSenseEntity, LawnMowerEntity):
             "connected": self.coordinator.connected,
             "automatic": self.coordinator.prefs["automatic"],
             "mode": logic.MODES.get(d.mode) if d else None,
+            "waiting_for_dry_until": (self.coordinator.prefs.get("pending") or {}).get("until"),
         }
 
     async def async_start_mowing(self) -> None:
@@ -69,8 +73,8 @@ class MowSenseMower(MowSenseEntity, LawnMowerEntity):
     async def async_dock(self) -> None:
         await self.coordinator.park()
 
-    async def async_mow(self, hours: float | None = None) -> None:
-        await self.coordinator.start_mowing(hours)
+    async def async_mow(self, hours: float | None = None, ignore_rain: bool = False) -> None:
+        await self.coordinator.start_mowing(hours, ignore_rain)
 
     async def async_park(self, until: str = "further_notice") -> None:
         await self.coordinator.park(until)

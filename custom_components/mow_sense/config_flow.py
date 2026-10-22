@@ -22,8 +22,15 @@ from .const import (
     CONF_CHANNEL_ID,
     CONF_GRACE_MINUTES,
     CONF_IDLE_INTERVAL,
+    CONF_MIN_RUN,
+    CONF_RAIN_DRY,
+    CONF_RAIN_LEAD,
     CONF_SCHEDULE_ENTITY,
+    CONF_WEATHER_ENTITY,
     DEFAULT_ACTIVE_INTERVAL,
+    DEFAULT_MIN_RUN,
+    DEFAULT_RAIN_DRY,
+    DEFAULT_RAIN_LEAD,
     DEFAULT_GRACE_MINUTES,
     DEFAULT_IDLE_INTERVAL,
     DOMAIN,
@@ -184,6 +191,19 @@ class MowSenseOptionsFlow(OptionsFlow):
                 vol.Optional(CONF_SCHEDULE_ENTITY): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="schedule")
                 ),
+                vol.Optional(CONF_WEATHER_ENTITY): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="weather")
+                ),
+                **{
+                    vol.Required(key, default=opts.get(key, default)): selector.NumberSelector(
+                        selector.NumberSelectorConfig(min=lo, max=hi, step=5, unit_of_measurement="min", mode=selector.NumberSelectorMode.BOX)
+                    )
+                    for key, default, lo, hi in (
+                        (CONF_RAIN_LEAD, DEFAULT_RAIN_LEAD, 0, 120),
+                        (CONF_RAIN_DRY, DEFAULT_RAIN_DRY, 0, 360),
+                        (CONF_MIN_RUN, DEFAULT_MIN_RUN, 10, 240),
+                    )
+                },
                 vol.Required(
                     CONF_ACTIVE_INTERVAL, default=opts.get(CONF_ACTIVE_INTERVAL, DEFAULT_ACTIVE_INTERVAL)
                 ): selector.NumberSelector(
@@ -204,6 +224,7 @@ class MowSenseOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
-                schema, {CONF_SCHEDULE_ENTITY: opts.get(CONF_SCHEDULE_ENTITY)}
+                schema,
+                {CONF_SCHEDULE_ENTITY: opts.get(CONF_SCHEDULE_ENTITY), CONF_WEATHER_ENTITY: opts.get(CONF_WEATHER_ENTITY)},
             ),
         )
