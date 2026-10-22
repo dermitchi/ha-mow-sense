@@ -203,6 +203,8 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
     # --- polling --------------------------------------------------------------
 
     async def _async_update_data(self) -> MowerData | None:
+        if self.rain_enabled:
+            await self._update_rain()  # forecast also while the mower is off
         self.in_range = self.link.in_range()
         try:
             if not self.in_range:
