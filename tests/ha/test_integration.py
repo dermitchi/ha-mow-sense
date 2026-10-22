@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from importlib.resources import files
+import json
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
@@ -16,8 +18,35 @@ from homeassistant.util import dt as dt_util
 
 from custom_components.mow_sense import logic
 from custom_components.mow_sense.const import DOMAIN, EVENT_CORRECTED
+from custom_components.mow_sense.frames import FIXED, SIZES
 
 ADDR = "AA:BB:CC:DD:EE:FF"
+
+
+PROTOCOL = json.loads((files("automower_ble") / "protocol.json").read_text())
+BY_ID = {(v["major"], v["minor"]): k for k, v in PROTOCOL.items()}
+for _name, _spec in FIXED.items():
+    BY_ID[(_spec["major"], _spec["minor"])] = _name
+
+
+def _encode(request, rtype, value) -> bytearray:
+    data = bytearray()
+    if rtype is not None and value is not None:
+        fields = rtype if isinstance(rtype, dict) else {"response": rtype}
+        values = value if isinstance(rtype, dict) else {"response": value}
+        for key, kind in fields.items():
+            v = values.get(key, 0)
+            if kind == "ascii":
+                data += v.encode() + b"\0"
+            elif kind == "remaining_uint":
+                data += b"\0\0"
+            else:
+                data += int(v).to_bytes(SIZES[kind], "little")
+    resp = bytearray(request[:18])
+    resp[10] = 0x01
+    resp[16] = 0
+    resp[17:19] = len(data).to_bytes(2, "little")
+    return resp + data + b"\0\x03"
 
 
 class FakeMower:
@@ -29,6 +58,7 @@ class FakeMower:
     connect_result = ResponseResult.OK
 
     def __init__(self, channel_id, address, pin=None):
+        self.channel_id = channel_id
         self.keep_alive_event = asyncio.Event()
         self.client = None
         self._connected = False
@@ -43,6 +73,22 @@ class FakeMower:
     def is_connected(self):
         return self._connected
 
+    async def get_protocol(self):
+        return PROTOCOL
+
+    async def _request_response(self, request):
+        """Decode our frame, answer via command(), encode a response frame."""
+        major = request[12] | request[13] << 8
+        name = BY_ID[(major, request[14])]
+        spec = FIXED.get(name) or PROTOCOL[name]
+        payload, kw, pos = request[18:-2], {}, 0
+        for key, kind in (spec.get("requestType") or {}).items():
+            size = SIZES[kind]
+            kw[key] = int.from_bytes(payload[pos:pos + size], "little")
+            pos += size
+        value = await self.command(name, **kw)
+        return _encode(request, spec.get("responseType"), value)
+
     async def disconnect(self):
         self._connected = False
 
@@ -52,7 +98,7 @@ class FakeMower:
         simple = {
             "GetModel": {"deviceType": 29, "deviceVariant": 4},
             "GetSerialNumber": 123456,
-            "GetUserMowerNameAsAsciiString": "",
+            "GetUserMowerNameAsAsciiString": "SILENO minimo 250",
             "GetBatteryLevel": s["battery"],
             "IsCharging": s["charging"],
             "GetState": s["state"],
@@ -73,7 +119,7 @@ class FakeMower:
             return simple[name]
         if name == "GetTask":
             t = s["tasks"][kw["taskId"]]
-            raw = {"start": t.start, "duration": t.duration, "unknown": 0}
+            raw = {"start": t.start, "duration": t.duration}
             for i, d in enumerate(logic.DAYS):
                 raw[f"useOn{d.capitalize()}"] = int(t.days[i])
             return raw
@@ -233,7 +279,7 @@ async def test_config_flow_manual(hass):
         with patch("custom_components.mow_sense.async_setup_entry", return_value=True):
             result = await hass.config_entries.flow.async_configure(result["flow_id"], {"address": ADDR, "pin": "1234"})
     assert result["type"] == "create_entry"
-    assert result["title"] == "SILENO Minimo 250"
+    assert result["title"] == "SILENO minimo 250"
     assert result["data"]["pin"] == "1234" and result["data"]["address"] == ADDR
     assert 1 <= result["data"]["channel_id"] <= 0xFFFFFFFF
 

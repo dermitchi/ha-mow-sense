@@ -172,7 +172,8 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
 
     def _update_device(self, data: MowerData) -> None:
         registry = dr.async_get(self.hass)
-        device = registry.async_get_device(identifiers={(DOMAIN, self.link.address)})
+        devices = dr.async_entries_for_config_entry(registry, self.config_entry.entry_id)
+        device = devices[0] if devices else None
         serial = str(data.serial) if data.serial else None
         if device and (device.model != data.model or device.serial_number != serial):
             registry.async_update_device(device.id, model=data.model, serial_number=serial)
@@ -286,7 +287,7 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
         tasks = []
         for i in range(count):
             raw = await ask(m, "GetTask", taskId=i)
-            if isinstance(raw, dict):
+            if isinstance(raw, dict) and "useOnSunday" in raw:
                 tasks.append(logic.task_from_raw(raw))
         return tasks
 

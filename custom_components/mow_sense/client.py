@@ -8,6 +8,7 @@ poll or command is its own session.
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from typing import TypeVar
@@ -21,6 +22,7 @@ from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant
 
 from .const import LOGGER
+from .frames import FIXED, build_request, parse_response, result_code
 
 T = TypeVar("T")
 
@@ -90,13 +92,18 @@ class MowerLink:
 
 
 async def ask(mower: Mower, command: str, **kwargs):
-    """Send one command; a missing answer means the link is gone."""
-    try:
-        value = await mower.command(command, **kwargs)
-    except ValueError as err:
-        # Mower answered with an error result (e.g. NOT_AVAILABLE on this model).
-        LOGGER.debug("%s nicht verfügbar: %s", command, err)
+    """Send one command and parse the answer (None if the mower refuses it).
+
+    A missing answer with the link gone raises LinkError.
+    """
+    spec = FIXED.get(command) or (await mower.get_protocol())[command]
+    response = await mower._request_response(build_request(mower.channel_id, spec, **kwargs))  # noqa: SLF001
+    if response is None or len(response) < 19:
+        if not mower.is_connected():
+            raise LinkError(f"Keine Antwort auf {command}")
         return None
-    if value is None and not mower.is_connected():
-        raise LinkError(f"Keine Antwort auf {command}")
-    return value
+    if code := result_code(response):
+        quiet = command.startswith("Get") or command == "StartTrigger"
+        LOGGER.log(logging.DEBUG if quiet else logging.WARNING, "%s: Mäher antwortet mit Ergebnis %s", command, code)
+        return None
+    return parse_response(response, spec.get("responseType"))

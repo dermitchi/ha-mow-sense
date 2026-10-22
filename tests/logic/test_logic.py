@@ -18,12 +18,9 @@ def test_schedule_groups_equal_windows_across_days():
     assert week.label() == "Mo–Fr 10:00–12:30"
 
 
-def test_whole_day_is_split_for_uint16():
+def test_whole_day_is_one_task():
     sched = {"sunday": [{"from": time(0, 0), "to": time.max}]}
-    tasks = L.tasks_from_schedule(sched)
-    assert sum(t.duration for t in tasks) == 86400
-    assert all(t.duration <= 0xFFFF for t in tasks)
-    assert all(t.days[6] and not any(t.days[:6]) for t in tasks)
+    assert L.tasks_from_schedule(sched) == [L.Task(0, 86400, (False,) * 6 + (True,))]
 
 
 def test_midnight_end():
@@ -41,8 +38,9 @@ def test_same_tasks_ignores_grouping():
 
 def test_addtask_kwargs_order():
     k = L.Task(100, 200, (True, False, False, False, False, False, True)).kwargs()
+    assert list(k) == ["start", "duration", "useOnMonday", "useOnTuesday", "useOnWednesday",
+                       "useOnThursday", "useOnFriday", "useOnSaturday", "useOnSunday", "unknown"]
     assert k["useOnMonday"] == 1 and k["useOnSunday"] == 1 and k["useOnTuesday"] == 0
-    assert list(k)[:4] == ["start", "duration", "useOnSunday", "unknown_1"]
 
 
 def test_task_from_raw_roundtrip():
@@ -75,6 +73,8 @@ def test_activity_mapping():
     assert L.lawn_mower_activity(L.STATE_PAUSED, L.ACT_MOWING) == "paused"
     assert L.lawn_mower_activity(L.STATE_ERROR, L.ACT_STOPPED_IN_GARDEN) == "error"
     assert L.lawn_mower_activity(L.STATE_STOPPED, L.ACT_CHARGING) == "docked"
+    # switched on in the cellar, off the station (real reading 2026-10-22)
+    assert L.lawn_mower_activity(L.STATE_STOPPED, L.ACT_NONE) == "error"
     assert L.lawn_mower_activity(None, 1) is None
 
 

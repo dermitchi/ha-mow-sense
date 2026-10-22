@@ -65,8 +65,8 @@ MODES = {
 DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 DAY_SHORT = ("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
 DAY_SECONDS = 86400
-# AddTask sends the duration as uint16.
-MAX_TASK_SECONDS = 0xFFFF
+# One task may not run past midnight.
+MAX_TASK_SECONDS = DAY_SECONDS
 
 
 def lawn_mower_activity(state: int | None, activity: int | None) -> str | None:
@@ -78,8 +78,8 @@ def lawn_mower_activity(state: int | None, activity: int | None) -> str | None:
     if state in (STATE_ERROR, STATE_FATAL_ERROR):
         return "error"
     if state in (STATE_STOPPED, STATE_OFF, STATE_WAIT_FOR_SAFETYPIN):
-        # Stopped in the garden needs a human; in the station it is just idle.
-        return "error" if activity == ACT_STOPPED_IN_GARDEN else "docked"
+        # In the station it is just idle; anywhere else it needs a human.
+        return "docked" if activity in (ACT_CHARGING, ACT_PARKED) else "error"
     if state == STATE_PENDING_START and activity == ACT_NONE:
         return "docked"
     if activity in (ACT_GOING_OUT, ACT_MOWING):
@@ -158,20 +158,10 @@ class Task:
 
     def kwargs(self) -> dict[str, int]:
         """Arguments for the AddTask command."""
-        d = self.days
-        return {
-            "start": self.start,
-            "duration": self.duration,
-            "useOnSunday": int(d[6]),
-            "unknown_1": 0,
-            "useOnMonday": int(d[0]),
-            "useOnTuesday": int(d[1]),
-            "useOnWednesday": int(d[2]),
-            "useOnThursday": int(d[3]),
-            "useOnFriday": int(d[4]),
-            "useOnSaturday": int(d[5]),
-            "unknown_2": 0,
-        }
+        args = {"start": self.start, "duration": self.duration}
+        args.update({f"useOn{d.capitalize()}": int(on) for d, on in zip(DAYS, self.days)})
+        args["unknown"] = 0
+        return args
 
     def label(self) -> str:
         return f"{day_label(self.days)} {clock(self.start)}–{clock(self.start + self.duration)}"
@@ -214,8 +204,7 @@ def _seconds(value) -> int:
 def tasks_from_schedule(schedule: dict[str, list[dict]]) -> list[Task]:
     """HA schedule.get_schedule response for one entity -> merged mower tasks.
 
-    Equal time windows on several days become one task. Windows longer than the
-    uint16 duration limit are split.
+    Equal time windows on several days become one task.
     """
     windows: dict[tuple[int, int], list[bool]] = {}
     for day_idx, day in enumerate(DAYS):
