@@ -15,7 +15,8 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: MowSenseConfigEntry, add: AddConfigEntryEntitiesCallback
 ) -> None:
     c = entry.runtime_data
-    add([Charging(c, "charging"), Problem(c, "problem"), Connected(c, "connected"), InRange(c, "in_range")])
+    add([Charging(c, "charging"), Problem(c, "problem"), Connected(c, "connected"), InRange(c, "in_range"),
+         BladesDue(c, "blades_due")])
 
 
 class Charging(MowSenseEntity, BinarySensorEntity):
@@ -68,3 +69,18 @@ class InRange(MowSenseEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool:
         return self.coordinator.in_range
+
+
+class BladesDue(MowSenseEntity, BinarySensorEntity):
+    """On once the blades ran their interval since the last change."""
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _needs_fresh = False
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.blade_due() is not None
+
+    @property
+    def is_on(self) -> bool | None:
+        return self.coordinator.blade_due()

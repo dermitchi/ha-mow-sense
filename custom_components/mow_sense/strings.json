@@ -156,6 +156,23 @@
       },
       "last_contact": {
         "name": "Last contact"
+      },
+      "blade_hours": {
+        "name": "Blades since change",
+        "state_attributes": {
+          "interval": {
+            "name": "Interval"
+          },
+          "remaining": {
+            "name": "Remaining"
+          },
+          "percent": {
+            "name": "Used"
+          }
+        }
+      },
+      "blade_changed_at": {
+        "name": "Blades changed on"
       }
     },
     "binary_sensor": {
@@ -170,6 +187,9 @@
       },
       "in_range": {
         "name": "In Bluetooth range"
+      },
+      "blades_due": {
+        "name": "Blade change due"
       }
     },
     "switch": {
@@ -180,6 +200,9 @@
     "number": {
       "mow_hours": {
         "name": "Mowing duration on start"
+      },
+      "blade_interval": {
+        "name": "Change blades every"
       }
     },
     "button": {
@@ -188,6 +211,9 @@
       },
       "park_further_notice": {
         "name": "Park until further notice"
+      },
+      "blades_changed": {
+        "name": "Blades changed"
       }
     }
   },

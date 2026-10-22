@@ -1,33 +1,100 @@
 {
   "entity": {
     "sensor": {
-      "state": {"default": "mdi:robot-mower"},
-      "activity": {"default": "mdi:robot-mower-outline"},
-      "mode": {"default": "mdi:cog"},
-      "error": {"default": "mdi:alert-circle-outline"},
-      "next_start": {"default": "mdi:calendar-clock"},
-      "remaining_charge": {"default": "mdi:battery-clock"},
-      "cutting_time": {"default": "mdi:grass"},
-      "running_time": {"default": "mdi:timer-outline"},
-      "blade_time": {"default": "mdi:saw-blade"},
-      "collisions": {"default": "mdi:car-brake-alert"},
-      "charging_cycles": {"default": "mdi:battery-sync"},
-      "schedule": {"default": "mdi:calendar-week"},
-      "last_contact": {"default": "mdi:bluetooth-connect"}
+      "state": {
+        "default": "mdi:robot-mower"
+      },
+      "activity": {
+        "default": "mdi:robot-mower-outline"
+      },
+      "mode": {
+        "default": "mdi:cog"
+      },
+      "error": {
+        "default": "mdi:alert-circle-outline"
+      },
+      "next_start": {
+        "default": "mdi:calendar-clock"
+      },
+      "remaining_charge": {
+        "default": "mdi:battery-clock"
+      },
+      "cutting_time": {
+        "default": "mdi:grass"
+      },
+      "running_time": {
+        "default": "mdi:timer-outline"
+      },
+      "blade_time": {
+        "default": "mdi:saw-blade"
+      },
+      "collisions": {
+        "default": "mdi:car-brake-alert"
+      },
+      "charging_cycles": {
+        "default": "mdi:battery-sync"
+      },
+      "schedule": {
+        "default": "mdi:calendar-week"
+      },
+      "last_contact": {
+        "default": "mdi:bluetooth-connect"
+      },
+      "blade_hours": {
+        "default": "mdi:saw-blade"
+      },
+      "blade_changed_at": {
+        "default": "mdi:calendar-check"
+      }
     },
     "switch": {
-      "automatic": {"default": "mdi:calendar-check", "state": {"off": "mdi:calendar-remove"}}
+      "automatic": {
+        "default": "mdi:calendar-check",
+        "state": {
+          "off": "mdi:calendar-remove"
+        }
+      }
     },
-    "number": {"mow_hours": {"default": "mdi:timer-sand"}},
+    "number": {
+      "mow_hours": {
+        "default": "mdi:timer-sand"
+      },
+      "blade_interval": {
+        "default": "mdi:timer-cog-outline"
+      }
+    },
     "button": {
-      "refresh": {"default": "mdi:refresh"},
-      "park_further_notice": {"default": "mdi:home-lock"}
+      "refresh": {
+        "default": "mdi:refresh"
+      },
+      "park_further_notice": {
+        "default": "mdi:home-lock"
+      },
+      "blades_changed": {
+        "default": "mdi:saw-blade"
+      }
     },
-    "binary_sensor": {"in_range": {"default": "mdi:bluetooth"}}
+    "binary_sensor": {
+      "in_range": {
+        "default": "mdi:bluetooth"
+      },
+      "blades_due": {
+        "default": "mdi:saw-blade",
+        "state": {
+          "on": "mdi:alert"
+        }
+      }
+    }
   },
   "services": {
-    "mow": {"service": "mdi:robot-mower"},
-    "park": {"service": "mdi:home-import-outline"},
-    "sync_schedule": {"service": "mdi:calendar-sync"}
+    "mow": {
+      "service": "mdi:robot-mower"
+    },
+    "park": {
+      "service": "mdi:home-import-outline"
+    },
+    "sync_schedule": {
+      "service": "mdi:calendar-sync"
+    }
   }
 }

@@ -15,6 +15,7 @@ from homeassistant.components.sensor import (
 from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from . import MowSenseConfigEntry, logic
 from .coordinator import ERROR_NAMES, MowerData, MowSenseCoordinator
@@ -118,7 +119,8 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: MowSenseConfigEntry, add: AddConfigEntryEntitiesCallback
 ) -> None:
     c = entry.runtime_data
-    add([Sensor(c, desc) for desc in SENSORS] + [Schedule(c, "schedule"), LastContact(c, "last_contact")])
+    add([Sensor(c, desc) for desc in SENSORS]
+        + [Schedule(c, "schedule"), LastContact(c, "last_contact"), BladeHours(c, "blade_hours"), BladeChanged(c, "blade_changed_at")])
 
 
 class Sensor(MowSenseEntity, SensorEntity):
@@ -177,3 +179,43 @@ class LastContact(MowSenseEntity, SensorEntity):
     @property
     def native_value(self):
         return self.coordinator.last_contact
+
+
+class BladeHours(MowSenseEntity, SensorEntity):
+    """Cutting hours since the last blade change (counted in HA)."""
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.HOURS
+    _attr_suggested_display_precision = 1
+    _needs_fresh = False
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.blade_hours() is not None
+
+    @property
+    def native_value(self):
+        return self.coordinator.blade_hours()
+
+    @property
+    def extra_state_attributes(self):
+        used = self.coordinator.blade_hours()
+        interval = self.coordinator.prefs["blade_interval"]
+        return {
+            "interval": interval,
+            "remaining": None if used is None else round(max(0.0, interval - used), 1),
+            "percent": None if used is None else min(100, round(used / interval * 100)),
+        }
+
+
+class BladeChanged(MowSenseEntity, SensorEntity):
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def native_value(self):
+        value = self.coordinator.prefs["blade_changed"]
+        return dt_util.parse_datetime(value) if value else None

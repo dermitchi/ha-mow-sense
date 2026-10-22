@@ -16,6 +16,8 @@ Mow Sense instead:
 - **Automatic switch** – *off* = the mower only drives when HA starts it. If it is found on its own schedule anyway (app, button), it is sent back to *park until further notice*. Runs HA started are left alone.
 - **Schedule from HA** (optional) – pick a `schedule` helper; its time blocks are written into the mower and re-checked every 10 min. Whatever the Gardena app puts there is overwritten. Because the schedule lives in the mower, it mows on time even when Bluetooth is down.
 - **Clock sync** – keeps the mower clock right (it uses local time).
+- **Blade reminder** – press *Blades changed* after fitting new blades; *Blades since change* counts cutting hours and *Blade change due* turns on after the interval (default 100 h, adjustable – Gardena gives no fixed figure).
+- **Never nudges an idle mower** – switching *Automatic* off only changes the mode; a start/trigger is only sent when the mower is out in the garden.
 
 ## Entities
 
@@ -23,8 +25,8 @@ Mow Sense instead:
 - **Sensors** – battery, state, activity, mode, error (German text), next start, remaining charging time, total cutting/running time, blade usage, collisions, charging cycles, schedule in mower (+ sync status), last contact
 - **Binary sensors** – charging, problem, connected, in Bluetooth range
 - **Switch** – Automatic (own schedule)
-- **Number** – mowing duration on start
-- **Buttons** – park until further notice, refresh now
+- **Number** – mowing duration on start, blade change interval
+- **Buttons** – park until further notice, refresh now, blades changed
 
 Services: `mow_sense.mow` (hours), `mow_sense.park` (`further_notice` / `next_schedule`), `mow_sense.sync_schedule`.
 Event `mow_sense_corrected` fires whenever Mow Sense had to correct the mower (mode or schedule).

@@ -156,6 +156,23 @@
       },
       "last_contact": {
         "name": "Letzter Kontakt"
+      },
+      "blade_hours": {
+        "name": "Messer seit Wechsel",
+        "state_attributes": {
+          "interval": {
+            "name": "Intervall"
+          },
+          "remaining": {
+            "name": "Verbleibend"
+          },
+          "percent": {
+            "name": "Verbraucht"
+          }
+        }
+      },
+      "blade_changed_at": {
+        "name": "Messer gewechselt am"
       }
     },
     "binary_sensor": {
@@ -170,6 +187,9 @@
       },
       "in_range": {
         "name": "In Bluetooth-Reichweite"
+      },
+      "blades_due": {
+        "name": "Messerwechsel fällig"
       }
     },
     "switch": {
@@ -180,6 +200,9 @@
     "number": {
       "mow_hours": {
         "name": "Mähdauer beim Start"
+      },
+      "blade_interval": {
+        "name": "Messerwechsel alle"
       }
     },
     "button": {
@@ -188,6 +211,9 @@
       },
       "park_further_notice": {
         "name": "Parken bis auf Weiteres"
+      },
+      "blades_changed": {
+        "name": "Messer gewechselt"
       }
     }
   },

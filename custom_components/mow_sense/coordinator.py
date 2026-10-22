@@ -29,6 +29,7 @@ from .const import (
     CONF_IDLE_INTERVAL,
     CONF_SCHEDULE_ENTITY,
     DEFAULT_ACTIVE_INTERVAL,
+    DEFAULT_BLADE_HOURS,
     DEFAULT_GRACE_MINUTES,
     DEFAULT_IDLE_INTERVAL,
     DEFAULT_MOW_HOURS,
@@ -63,6 +64,12 @@ class MowerData:
     model: str | None = None
     serial: int | None = None
     name: str | None = None
+    firmware: str | None = None
+
+    @property
+    def cutting_hours(self) -> float | None:
+        secs = self.stats.get("totalCuttingTime")
+        return secs / 3600 if secs is not None else None
 
 
 class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
@@ -86,7 +93,13 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
         self.schedule_status = "off"  # off | in_sync | written | failed
         self.last_correction: str | None = None
         self._store: Store = Store(hass, 1, f"{DOMAIN}.{entry.entry_id}")
-        self.prefs: dict[str, Any] = {"automatic": True, "mow_hours": DEFAULT_MOW_HOURS}
+        self.prefs: dict[str, Any] = {
+            "automatic": True,
+            "mow_hours": DEFAULT_MOW_HOURS,
+            "blade_interval": DEFAULT_BLADE_HOURS,
+            "blade_changed": None,  # ISO time of the last blade change
+            "blade_base": None,  # total cutting hours at that change
+        }
         self._slow_at = 0.0
         self._tasks_at = 0.0
         self._schedule_attempts = 0
@@ -175,8 +188,12 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
         devices = dr.async_entries_for_config_entry(registry, self.config_entry.entry_id)
         device = devices[0] if devices else None
         serial = str(data.serial) if data.serial else None
-        if device and (device.model != data.model or device.serial_number != serial):
-            registry.async_update_device(device.id, model=data.model, serial_number=serial)
+        if device and (
+            device.model != data.model or device.serial_number != serial or device.sw_version != data.firmware
+        ):
+            registry.async_update_device(
+                device.id, model=data.model, serial_number=serial, sw_version=data.firmware
+            )
 
     def _set_interval(self, data: MowerData | None) -> None:
         if data is None:
@@ -206,6 +223,8 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
                 d.model = info.model if info else f"Unbekannt ({raw['deviceType']},{raw['deviceVariant']})"
             d.serial = await ask(m, "GetSerialNumber")
             d.name = await ask(m, "GetUserMowerNameAsAsciiString")
+        if d.firmware is None:
+            d.firmware = await ask(m, "GetSwVersionStringAppl") or None
 
         d.battery = await ask(m, "GetBatteryLevel")
         if d.battery is None:
@@ -233,6 +252,10 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
                     LOGGER.info("Stelle Mäher-Uhr (Abweichung %s s)", d.clock_drift)
                     await ask(m, "SetTime", time=self.mower_now())
                     d.clock_drift = 0
+
+        if self.prefs["blade_changed"] and self.prefs["blade_base"] is None and d.cutting_hours is not None:
+            self.prefs["blade_base"] = round(d.cutting_hours, 2)
+            await self.save_prefs()
 
         await self._enforce_mode(m, d)
         await self._enforce_schedule(m, d, now_mono)
@@ -263,7 +286,10 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
             " und fuhr" if outside else "",
         )
         await ask(m, "SetMode", mode=logic.MODE_HOME)
-        await ask(m, "StartTrigger")  # apply, like the app does
+        if outside:
+            # Send it home now. Never trigger a mower that is not outside: off
+            # the station (e.g. stored in the cellar) that could make it move.
+            await ask(m, "StartTrigger")
         d.mode = logic.MODE_HOME
         self._correction("mode", "Automatik aus: Mäher auf 'Parken bis auf Weiteres' gestellt", outside)
 
@@ -405,15 +431,17 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
             return
 
         async def work(m: Mower) -> None:
+            # Only the mode is changed; no StartTrigger, so nothing moves by itself.
             if on:
                 if await ask(m, "GetMode") == logic.MODE_HOME:
                     await ask(m, "SetMode", mode=logic.MODE_AUTO)
-                    await ask(m, "StartTrigger")
-            else:
-                override = logic.override_from_raw(await ask(m, "GetOverride"))
-                if not (override.action == logic.OVERRIDE_MOW and override.active(self.mower_now())):
-                    await ask(m, "SetMode", mode=logic.MODE_HOME)
-                    await ask(m, "StartTrigger")
+                return
+            override = logic.override_from_raw(await ask(m, "GetOverride"))
+            if override.action == logic.OVERRIDE_MOW and override.active(self.mower_now()):
+                return  # a run started on purpose finishes first
+            await ask(m, "SetMode", mode=logic.MODE_HOME)
+            if logic.is_outside(await ask(m, "GetActivity")):
+                await ask(m, "StartTrigger")  # out in the garden: go home now
 
         try:
             await self.command(work)
@@ -425,3 +453,24 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
         self._schedule_attempts = 0
         self._tasks_at = 0.0
         await self.async_request_refresh()
+
+    # --- blades --------------------------------------------------------------------
+
+    def blade_hours(self) -> float | None:
+        base = self.prefs["blade_base"]
+        hours = self.data.cutting_hours if self.data else None
+        if base is None or hours is None:
+            return None
+        return round(max(0.0, hours - base), 1)
+
+    def blade_due(self) -> bool | None:
+        used = self.blade_hours()
+        return None if used is None else used >= self.prefs["blade_interval"]
+
+    async def blades_changed(self) -> None:
+        """Remember the change; counted in HA, the mower is not touched."""
+        hours = self.data.cutting_hours if self.data else None
+        self.prefs["blade_changed"] = dt_util.utcnow().isoformat()
+        self.prefs["blade_base"] = round(hours, 2) if hours is not None else None
+        await self.save_prefs()
+        self.async_update_listeners()

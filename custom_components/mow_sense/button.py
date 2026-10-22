@@ -15,7 +15,7 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: MowSenseConfigEntry, add: AddConfigEntryEntitiesCallback
 ) -> None:
     c = entry.runtime_data
-    add([Refresh(c, "refresh"), ParkFurtherNotice(c, "park_further_notice")])
+    add([Refresh(c, "refresh"), ParkFurtherNotice(c, "park_further_notice"), BladesChanged(c, "blades_changed")])
 
 
 class Refresh(MowSenseEntity, ButtonEntity):
@@ -36,3 +36,14 @@ class ParkFurtherNotice(MowSenseEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.coordinator.park("further_notice")
+
+
+class BladesChanged(MowSenseEntity, ButtonEntity):
+    """Press after fitting new blades; the counter in HA starts again."""
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    async def async_press(self) -> None:
+        await self.coordinator.blades_changed()

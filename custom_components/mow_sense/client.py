@@ -67,7 +67,7 @@ class MowerLink:
                 try:
                     result = await asyncio.wait_for(mower.connect(device), CONNECT_TIMEOUT)
                 except (BleakError, TimeoutError, OSError) as err:
-                    raise LinkError(f"Verbindung fehlgeschlagen: {err or type(err).__name__}") from err
+                    raise LinkError(f"Verbindung fehlgeschlagen: {str(err) or type(err).__name__}") from err
                 if result in (ResponseResult.INVALID_PIN, ResponseResult.NOT_ALLOWED):
                     raise AuthError(f"Mäher lehnt ab ({result.name})")
                 if result is not ResponseResult.OK:
@@ -75,7 +75,7 @@ class MowerLink:
                 try:
                     return await asyncio.wait_for(work(mower), WORK_TIMEOUT)
                 except (BleakError, TimeoutError, OSError) as err:
-                    raise LinkError(f"Kommunikation abgebrochen: {err or type(err).__name__}") from err
+                    raise LinkError(f"Kommunikation abgebrochen: {str(err) or type(err).__name__}") from err
             finally:
                 await self._close(mower)
 

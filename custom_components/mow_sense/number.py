@@ -14,7 +14,8 @@ from .entity import MowSenseEntity
 async def async_setup_entry(
     hass: HomeAssistant, entry: MowSenseConfigEntry, add: AddConfigEntryEntitiesCallback
 ) -> None:
-    add([MowHours(entry.runtime_data, "mow_hours")])
+    c = entry.runtime_data
+    add([MowHours(c, "mow_hours"), BladeInterval(c, "blade_interval")])
 
 
 class MowHours(MowSenseEntity, NumberEntity):
@@ -37,3 +38,27 @@ class MowHours(MowSenseEntity, NumberEntity):
         self.coordinator.prefs["mow_hours"] = value
         await self.coordinator.save_prefs()
         self.async_write_ha_state()
+
+
+class BladeInterval(MowSenseEntity, NumberEntity):
+    """Cutting hours after which the blades should be changed."""
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_native_min_value = 20
+    _attr_native_max_value = 500
+    _attr_native_step = 5
+    _attr_native_unit_of_measurement = UnitOfTime.HOURS
+    _attr_mode = NumberMode.BOX
+
+    @property
+    def available(self) -> bool:
+        return True
+
+    @property
+    def native_value(self) -> float:
+        return self.coordinator.prefs["blade_interval"]
+
+    async def async_set_native_value(self, value: float) -> None:
+        self.coordinator.prefs["blade_interval"] = value
+        await self.coordinator.save_prefs()
+        self.coordinator.async_update_listeners()

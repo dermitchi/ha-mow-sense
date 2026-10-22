@@ -18,6 +18,7 @@ DEFAULT_IDLE_INTERVAL = 300  # s, while it sits in the station
 DEFAULT_GRACE_MINUTES = 30  # keep last values this long without contact
 RETRY_INTERVAL = 120  # s, after a failed connection / out of range
 DEFAULT_MOW_HOURS = 3.0
+DEFAULT_BLADE_HOURS = 100  # cutting hours between blade changes (no official Gardena value)
 
 SLOW_EVERY = 1800  # s, statistics / clock / last message
 TASKS_EVERY = 600  # s, re-check the mower's schedule

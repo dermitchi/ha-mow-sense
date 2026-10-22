@@ -50,6 +50,7 @@ FIXED: dict[str, dict] = {
         "minor": 2,
         "responseType": {"action": "uint8", "startTime": "tUnixTime", "duration": "uint32"},
     },
+    "GetSwVersionStringAppl": {"major": 4720, "minor": 1, "responseType": "ascii"},
 }
 
 SIZES = {"uint8": 1, "bool": 1, "uint16": 2, "sint16": 2, "uint32": 4, "tUnixTime": 4}

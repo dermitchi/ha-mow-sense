@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from importlib.resources import files
 import json
+from dataclasses import replace
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
@@ -293,3 +294,34 @@ async def test_options_flow(hass):
     assert result["type"] == "create_entry"
     await hass.async_block_till_done()
     assert entry.options["idle_interval"] == 600
+
+
+async def test_cellar_never_gets_start_trigger(hass):
+    """Real case 2026-10-22: switched on in the cellar, STOPPED/NONE, Automatik off."""
+    FakeMower.state.update(state=logic.STATE_STOPPED, activity=logic.ACT_NONE, charging=False)
+    entry = await _setup(hass)
+    assert hass.states.get("lawn_mower.sileno_minimo_250").state == "error"
+    FakeMower.log.clear()
+    await entry.runtime_data.set_automatic(False)
+    await entry.runtime_data.async_refresh()
+    assert FakeMower.state["mode"] == logic.MODE_HOME
+    assert "StartTrigger" not in _cmds()
+
+
+async def test_blade_counter(hass):
+    entry = await _setup(hass)
+    c = entry.runtime_data
+    assert hass.states.get("sensor.sileno_minimo_250_blades_since_change").state == "unavailable"
+    await hass.services.async_call("button", "press", {"entity_id": "button.sileno_minimo_250_blades_changed"}, blocking=True)
+    assert c.prefs["blade_base"] == round(30000 / 3600, 2)
+    assert hass.states.get("sensor.sileno_minimo_250_blades_since_change").state == "0.0"
+    assert hass.states.get("binary_sensor.sileno_minimo_250_blade_change_due").state == "off"
+    # 120 cutting hours later
+    stats = dict(c.data.stats, totalCuttingTime=30000 + 120 * 3600)
+    c.async_set_updated_data(replace(c.data, stats=stats))
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.sileno_minimo_250_blades_since_change").state == "120.0"
+    assert hass.states.get("binary_sensor.sileno_minimo_250_blade_change_due").state == "on"
+    await hass.services.async_call("number", "set_value", {"entity_id": "number.sileno_minimo_250_change_blades_every", "value": 150}, blocking=True)
+    assert hass.states.get("binary_sensor.sileno_minimo_250_blade_change_due").state == "off"
+    assert hass.states.get("sensor.sileno_minimo_250_blades_since_change").attributes["remaining"] == 30.0
