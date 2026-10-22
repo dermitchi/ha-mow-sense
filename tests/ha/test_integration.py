@@ -390,3 +390,14 @@ async def test_station_keeps_mower_when_schedule_start_in_rain(hass):
     entry = await _setup(hass, RAIN_OPTS)
     assert "SetOverridePark" in _cmds()
     assert "StartTrigger" not in _cmds()
+
+
+async def test_last_values_survive_restart(hass, fake_ble):
+    entry = await _setup(hass)
+    await entry.runtime_data.save_prefs()
+    await hass.config_entries.async_unload(entry.entry_id)
+    fake_ble["on"] = False
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.sileno_minimo_250_total_cutting_time").state == "8.3"
+    assert hass.states.get("sensor.sileno_minimo_250_last_contact").state not in ("unknown", "unavailable")

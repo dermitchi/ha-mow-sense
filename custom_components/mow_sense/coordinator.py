@@ -80,6 +80,28 @@ class MowerData:
         return secs / 3600 if secs is not None else None
 
 
+def _data_to_dict(d: MowerData) -> dict[str, Any]:
+    return {
+        "fetched_at": d.fetched_at.isoformat(),
+        "battery": d.battery, "charging": d.charging, "state": d.state, "activity": d.activity,
+        "mode": d.mode, "error_code": d.error_code,
+        "next_start": d.next_start.isoformat() if d.next_start else None,
+        "tasks": [[t.start, t.duration, list(t.days)] for t in d.tasks] if d.tasks is not None else None,
+        "stats": d.stats, "model": d.model, "serial": d.serial, "name": d.name, "firmware": d.firmware,
+    }
+
+
+def _data_from_dict(raw: dict[str, Any]) -> MowerData:
+    d = MowerData(fetched_at=dt_util.parse_datetime(raw["fetched_at"]))
+    for key in ("battery", "charging", "state", "activity", "mode", "error_code", "model", "serial", "name", "firmware"):
+        setattr(d, key, raw.get(key))
+    d.stats = raw.get("stats") or {}
+    d.next_start = dt_util.parse_datetime(raw["next_start"]) if raw.get("next_start") else None
+    if raw.get("tasks") is not None:
+        d.tasks = [logic.Task(s, du, tuple(days)) for s, du, days in raw["tasks"]]
+    return d
+
+
 class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
     """Owns all mower sessions."""
 
@@ -123,7 +145,11 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
 
     async def async_setup(self) -> None:
         if stored := await self._store.async_load():
+            last = stored.pop("last", None)
             self.prefs.update(stored)
+            if last:
+                self.data = _data_from_dict(last)
+                self.last_contact = self.data.fetched_at
         self.in_range = self.link.in_range()
         self._unsub_ble = bluetooth.async_register_callback(
             self.hass,
@@ -153,7 +179,11 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
         self.async_update_listeners()
 
     async def save_prefs(self) -> None:
-        await self._store.async_save(self.prefs)
+        await self._store.async_save(self._stored())
+
+    def _stored(self) -> dict[str, Any]:
+        # Last values survive restarts (the mower is off all winter).
+        return {**self.prefs, "last": _data_to_dict(self.data) if self.data else None}
 
     # --- options --------------------------------------------------------------
 
@@ -192,6 +222,7 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
         self.connected = True
         self.last_problem = None
         self.last_contact = data.fetched_at
+        self._store.async_delay_save(self._stored, 60)
         self._update_device(data)
         self._set_interval(data)
         return data
