@@ -1,0 +1,33 @@
+{
+  "entity": {
+    "sensor": {
+      "state": {"default": "mdi:robot-mower"},
+      "activity": {"default": "mdi:robot-mower-outline"},
+      "mode": {"default": "mdi:cog"},
+      "error": {"default": "mdi:alert-circle-outline"},
+      "next_start": {"default": "mdi:calendar-clock"},
+      "remaining_charge": {"default": "mdi:battery-clock"},
+      "cutting_time": {"default": "mdi:grass"},
+      "running_time": {"default": "mdi:timer-outline"},
+      "blade_time": {"default": "mdi:saw-blade"},
+      "collisions": {"default": "mdi:car-brake-alert"},
+      "charging_cycles": {"default": "mdi:battery-sync"},
+      "schedule": {"default": "mdi:calendar-week"},
+      "last_contact": {"default": "mdi:bluetooth-connect"}
+    },
+    "switch": {
+      "automatic": {"default": "mdi:calendar-check", "state": {"off": "mdi:calendar-remove"}}
+    },
+    "number": {"mow_hours": {"default": "mdi:timer-sand"}},
+    "button": {
+      "refresh": {"default": "mdi:refresh"},
+      "park_further_notice": {"default": "mdi:home-lock"}
+    },
+    "binary_sensor": {"in_range": {"default": "mdi:bluetooth"}}
+  },
+  "services": {
+    "mow": {"service": "mdi:robot-mower"},
+    "park": {"service": "mdi:home-import-outline"},
+    "sync_schedule": {"service": "mdi:calendar-sync"}
+  }
+}

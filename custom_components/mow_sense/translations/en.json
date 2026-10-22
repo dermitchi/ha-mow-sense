@@ -1,0 +1,228 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Add mower",
+        "description": "Switch the mower off and on again (it is pairable for a few minutes after start), keep it near the Bluetooth proxy, then submit.",
+        "data": {
+          "address": "Mower",
+          "pin": "PIN"
+        },
+        "data_description": {
+          "address": "Mowers seen via Bluetooth, or type the address (AA:BB:CC:DD:EE:FF).",
+          "pin": "Optional 4-digit PIN of the mower. Leave empty if the mower has none."
+        }
+      },
+      "bluetooth_confirm": {
+        "title": "{name}",
+        "description": "Switch the mower off and on again (it is pairable for a few minutes after start), keep it near the Bluetooth proxy, then submit.",
+        "data": {
+          "pin": "PIN"
+        },
+        "data_description": {
+          "pin": "Optional 4-digit PIN of the mower. Leave empty if the mower has none."
+        }
+      },
+      "reauth_confirm": {
+        "title": "{name}",
+        "description": "The mower refused the connection. Check the PIN and put the mower into pairing mode (switch off and on).",
+        "data": {
+          "pin": "PIN"
+        },
+        "data_description": {
+          "pin": "Optional 4-digit PIN of the mower. Leave empty if the mower has none."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not talk to the mower. Is it switched on, paired-ready and in range of the proxy?",
+      "not_in_range": "Mower not seen via Bluetooth right now (switched off or proxy offline).",
+      "invalid_auth": "Mower refused: wrong PIN or not in pairing mode.",
+      "invalid_pin": "PIN must be up to 4 digits."
+    },
+    "abort": {
+      "already_configured": "Mower is already set up.",
+      "reauth_successful": "PIN updated.",
+      "no_devices_found": "No mower found."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Mow Sense",
+        "data": {
+          "schedule_entity": "Schedule helper",
+          "active_interval": "Poll interval while mowing",
+          "idle_interval": "Poll interval in the station",
+          "grace_minutes": "Keep last values without contact"
+        },
+        "data_description": {
+          "schedule_entity": "Optional. A schedule helper whose time blocks are written into the mower. Whatever the Gardena app or anything else sets gets overwritten. Empty = leave the mower's schedule alone.",
+          "grace_minutes": "Bluetooth drops out now and then. Live values stay until this much time has passed without contact."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery": {
+        "name": "Battery"
+      },
+      "state": {
+        "name": "State",
+        "state": {
+          "off": "Off",
+          "wait_for_pin": "Waiting for PIN",
+          "stopped": "Stopped",
+          "fatal_error": "Fatal error",
+          "pending_start": "Pending start",
+          "paused": "Paused",
+          "in_operation": "In operation",
+          "restricted": "Restricted (schedule/park)",
+          "error": "Error"
+        }
+      },
+      "activity": {
+        "name": "Activity",
+        "state": {
+          "none": "None",
+          "charging": "Charging",
+          "going_out": "Leaving station",
+          "mowing": "Mowing",
+          "going_home": "Going home",
+          "parked": "Parked",
+          "stopped_in_garden": "Stopped in garden"
+        }
+      },
+      "mode": {
+        "name": "Mode",
+        "state": {
+          "auto": "Automatic (schedule)",
+          "manual": "Manual",
+          "home": "Park until further notice",
+          "demo": "Demo",
+          "poi": "POI"
+        }
+      },
+      "error": {
+        "name": "Error",
+        "state_attributes": {
+          "last_message": {
+            "name": "Last message"
+          },
+          "last_message_time": {
+            "name": "Last message at"
+          }
+        }
+      },
+      "next_start": {
+        "name": "Next start"
+      },
+      "remaining_charge": {
+        "name": "Remaining charging time"
+      },
+      "cutting_time": {
+        "name": "Total cutting time"
+      },
+      "running_time": {
+        "name": "Total running time"
+      },
+      "blade_time": {
+        "name": "Blade usage"
+      },
+      "collisions": {
+        "name": "Collisions"
+      },
+      "charging_cycles": {
+        "name": "Charging cycles"
+      },
+      "schedule": {
+        "name": "Schedule in mower",
+        "state_attributes": {
+          "sync": {
+            "name": "Sync with HA",
+            "state": {
+              "off": "Off",
+              "in_sync": "In sync",
+              "written": "Written",
+              "failed": "Failed"
+            }
+          },
+          "last_correction": {
+            "name": "Last correction"
+          }
+        }
+      },
+      "last_contact": {
+        "name": "Last contact"
+      }
+    },
+    "binary_sensor": {
+      "charging": {
+        "name": "Charging"
+      },
+      "problem": {
+        "name": "Problem"
+      },
+      "connected": {
+        "name": "Connected"
+      },
+      "in_range": {
+        "name": "In Bluetooth range"
+      }
+    },
+    "switch": {
+      "automatic": {
+        "name": "Automatic (own schedule)"
+      }
+    },
+    "number": {
+      "mow_hours": {
+        "name": "Mowing duration on start"
+      }
+    },
+    "button": {
+      "refresh": {
+        "name": "Refresh now"
+      },
+      "park_further_notice": {
+        "name": "Park until further notice"
+      }
+    }
+  },
+  "selector": {
+    "park_until": {
+      "options": {
+        "further_notice": "Until further notice",
+        "next_schedule": "Until next schedule start"
+      }
+    }
+  },
+  "services": {
+    "mow": {
+      "name": "Mow for",
+      "description": "Mow now for a number of hours, even with Automatic off.",
+      "fields": {
+        "hours": {
+          "name": "Hours",
+          "description": "Default: the 'Mowing duration on start' setting."
+        }
+      }
+    },
+    "park": {
+      "name": "Park",
+      "description": "Send the mower home.",
+      "fields": {
+        "until": {
+          "name": "Until",
+          "description": "'Until further notice' also switches Automatic off."
+        }
+      }
+    },
+    "sync_schedule": {
+      "name": "Write schedule",
+      "description": "Read the mower now and write the schedule helper into it if it differs."
+    }
+  }
+}

@@ -1,0 +1,228 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Mäher hinzufügen",
+        "description": "Mäher aus- und wieder einschalten (danach ist er ein paar Minuten koppelbar), in die Nähe des Bluetooth-Proxys stellen, dann bestätigen.",
+        "data": {
+          "address": "Mäher",
+          "pin": "PIN"
+        },
+        "data_description": {
+          "address": "Per Bluetooth gefundene Mäher, oder Adresse eintippen (AA:BB:CC:DD:EE:FF).",
+          "pin": "Optional: 4-stelliger PIN des Mähers. Leer lassen, wenn er keinen hat."
+        }
+      },
+      "bluetooth_confirm": {
+        "title": "{name}",
+        "description": "Mäher aus- und wieder einschalten (danach ist er ein paar Minuten koppelbar), in die Nähe des Bluetooth-Proxys stellen, dann bestätigen.",
+        "data": {
+          "pin": "PIN"
+        },
+        "data_description": {
+          "pin": "Optional: 4-stelliger PIN des Mähers. Leer lassen, wenn er keinen hat."
+        }
+      },
+      "reauth_confirm": {
+        "title": "{name}",
+        "description": "Der Mäher hat die Verbindung abgelehnt. PIN prüfen und Mäher in den Kopplungsmodus bringen (aus- und einschalten).",
+        "data": {
+          "pin": "PIN"
+        },
+        "data_description": {
+          "pin": "Optional: 4-stelliger PIN des Mähers. Leer lassen, wenn er keinen hat."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Keine Verbindung zum Mäher. Ist er an, koppelbar und in Reichweite des Proxys?",
+      "not_in_range": "Mäher gerade nicht per Bluetooth sichtbar (aus oder Proxy offline).",
+      "invalid_auth": "Mäher lehnt ab: falscher PIN oder nicht im Kopplungsmodus.",
+      "invalid_pin": "PIN: bis zu 4 Ziffern."
+    },
+    "abort": {
+      "already_configured": "Mäher ist schon eingerichtet.",
+      "reauth_successful": "PIN aktualisiert.",
+      "no_devices_found": "Kein Mäher gefunden."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Mow Sense",
+        "data": {
+          "schedule_entity": "Zeitplan-Helfer",
+          "active_interval": "Abfrage beim Mähen",
+          "idle_interval": "Abfrage in der Station",
+          "grace_minutes": "Letzte Werte behalten ohne Kontakt"
+        },
+        "data_description": {
+          "schedule_entity": "Optional. Ein Zeitplan-Helfer, dessen Zeitblöcke in den Mäher geschrieben werden. Was die Gardena-App oder sonst etwas einträgt, wird überschrieben. Leer = Zeitplan im Mäher nicht anfassen.",
+          "grace_minutes": "Bluetooth bricht ab und zu ab. Live-Werte bleiben so lange stehen, bis so lange kein Kontakt war."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery": {
+        "name": "Akku"
+      },
+      "state": {
+        "name": "Zustand",
+        "state": {
+          "off": "Aus",
+          "wait_for_pin": "Wartet auf PIN",
+          "stopped": "Gestoppt",
+          "fatal_error": "Schwerer Fehler",
+          "pending_start": "Start ausstehend",
+          "paused": "Pausiert",
+          "in_operation": "In Betrieb",
+          "restricted": "Gesperrt (Zeitplan/Parken)",
+          "error": "Fehler"
+        }
+      },
+      "activity": {
+        "name": "Tätigkeit",
+        "state": {
+          "none": "Keine",
+          "charging": "Lädt",
+          "going_out": "Fährt raus",
+          "mowing": "Mäht",
+          "going_home": "Fährt heim",
+          "parked": "Geparkt",
+          "stopped_in_garden": "Steht im Garten"
+        }
+      },
+      "mode": {
+        "name": "Betriebsart",
+        "state": {
+          "auto": "Automatik (Zeitplan)",
+          "manual": "Manuell",
+          "home": "Parken bis auf Weiteres",
+          "demo": "Demo",
+          "poi": "POI"
+        }
+      },
+      "error": {
+        "name": "Fehler",
+        "state_attributes": {
+          "last_message": {
+            "name": "Letzte Meldung"
+          },
+          "last_message_time": {
+            "name": "Letzte Meldung um"
+          }
+        }
+      },
+      "next_start": {
+        "name": "Nächster Start"
+      },
+      "remaining_charge": {
+        "name": "Restladezeit"
+      },
+      "cutting_time": {
+        "name": "Mähzeit gesamt"
+      },
+      "running_time": {
+        "name": "Laufzeit gesamt"
+      },
+      "blade_time": {
+        "name": "Messer-Laufzeit"
+      },
+      "collisions": {
+        "name": "Kollisionen"
+      },
+      "charging_cycles": {
+        "name": "Ladezyklen"
+      },
+      "schedule": {
+        "name": "Zeitplan im Mäher",
+        "state_attributes": {
+          "sync": {
+            "name": "Abgleich mit HA",
+            "state": {
+              "off": "Aus",
+              "in_sync": "Stimmt",
+              "written": "Übertragen",
+              "failed": "Fehlgeschlagen"
+            }
+          },
+          "last_correction": {
+            "name": "Letzte Korrektur"
+          }
+        }
+      },
+      "last_contact": {
+        "name": "Letzter Kontakt"
+      }
+    },
+    "binary_sensor": {
+      "charging": {
+        "name": "Lädt"
+      },
+      "problem": {
+        "name": "Problem"
+      },
+      "connected": {
+        "name": "Verbunden"
+      },
+      "in_range": {
+        "name": "In Bluetooth-Reichweite"
+      }
+    },
+    "switch": {
+      "automatic": {
+        "name": "Automatik (Zeitplan)"
+      }
+    },
+    "number": {
+      "mow_hours": {
+        "name": "Mähdauer beim Start"
+      }
+    },
+    "button": {
+      "refresh": {
+        "name": "Jetzt abfragen"
+      },
+      "park_further_notice": {
+        "name": "Parken bis auf Weiteres"
+      }
+    }
+  },
+  "selector": {
+    "park_until": {
+      "options": {
+        "further_notice": "Bis auf Weiteres",
+        "next_schedule": "Bis zum nächsten Zeitplan-Start"
+      }
+    }
+  },
+  "services": {
+    "mow": {
+      "name": "Mähen für",
+      "description": "Jetzt für eine Anzahl Stunden mähen, auch wenn die Automatik aus ist.",
+      "fields": {
+        "hours": {
+          "name": "Stunden",
+          "description": "Standard: Einstellung „Mähdauer beim Start“."
+        }
+      }
+    },
+    "park": {
+      "name": "Parken",
+      "description": "Mäher nach Hause schicken.",
+      "fields": {
+        "until": {
+          "name": "Bis",
+          "description": "„Bis auf Weiteres“ schaltet auch die Automatik aus."
+        }
+      }
+    },
+    "sync_schedule": {
+      "name": "Zeitplan übertragen",
+      "description": "Mäher jetzt abfragen und den Zeitplan-Helfer übertragen, falls er abweicht."
+    }
+  }
+}
