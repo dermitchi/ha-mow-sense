@@ -59,12 +59,14 @@
           "weather_entity": "Wetter (Regenschutz)",
           "rain_lead_minutes": "Zuhause vor Regen",
           "rain_dry_minutes": "Trockenzeit nach Regen",
-          "min_run_minutes": "Kürzester lohnender Lauf"
+          "min_run_minutes": "Kürzester lohnender Lauf",
+          "min_temperature": "Nicht unter"
         },
         "data_description": {
           "schedule_entity": "Optional. Ein Zeitplan-Helfer, dessen Zeitblöcke in den Mäher geschrieben werden. Was die Gardena-App oder sonst etwas einträgt, wird überschrieben. Leer = Zeitplan im Mäher nicht anfassen.",
           "grace_minutes": "Bluetooth bricht ab und zu ab. Live-Werte bleiben so lange stehen, bis so lange kein Kontakt war.",
-          "weather_entity": "Stündliche Vorhersage. Bei angesagtem Regen fährt er nicht los, ist vor Regenbeginn zuhause und mäht danach weiter, wenn es trocken ist und sich noch lohnt. Leer = aus."
+          "weather_entity": "Stündliche Vorhersage. Bei angesagtem Regen fährt er nicht los, ist vor Regenbeginn zuhause und mäht danach weiter, wenn es trocken ist und sich noch lohnt. Leer = aus.",
+          "min_temperature": "Kälter als das (oder Schnee/Hagel) zählt wie Regen: kein Start, rechtzeitig heim. -20 = aus."
         }
       }
     }
@@ -186,7 +188,8 @@
           "clear": "Trocken",
           "rain_soon": "Regen bald",
           "raining": "Regnet",
-          "drying": "Trocknet"
+          "drying": "Trocknet",
+          "frost": "Frost"
         },
         "state_attributes": {
           "next_rain": {

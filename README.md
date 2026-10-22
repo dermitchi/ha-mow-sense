@@ -17,6 +17,7 @@ Mow Sense instead:
 - **Schedule from HA** (optional) – pick a `schedule` helper; its time blocks are written into the mower and re-checked every 10 min. Whatever the Gardena app puts there is overwritten. Because the schedule lives in the mower, it mows on time even when Bluetooth is down.
 - **Clock sync** – keeps the mower clock right (it uses local time).
 - **Rain guard** (optional weather entity with hourly forecast) – no start when rain is due, home before it starts (default 30 min), keeps the mower in the station on its own schedule while it rains or the grass dries (60 min), and starts a run HA asked for once it is dry and still worth it (≥45 min left). `mow_sense.mow` with `ignore_rain: true` overrides it.
+- **Frost guard** – below a minimum temperature (default 5 °C) or with snow/hail the mower is treated like in rain: no start, home in time. Set -20 to switch it off.
 - **Blade reminder** – press *Blades changed* after fitting new blades; *Blades since change* counts cutting hours and *Blade change due* turns on after the interval (default 100 h, adjustable – Gardena gives no fixed figure).
 - **Never nudges an idle mower** – switching *Automatic* off only changes the mode; a start/trigger is only sent when the mower is out in the garden.
 

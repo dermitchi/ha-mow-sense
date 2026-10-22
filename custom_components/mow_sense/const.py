@@ -16,6 +16,7 @@ CONF_WEATHER_ENTITY = "weather_entity"
 CONF_RAIN_LEAD = "rain_lead_minutes"
 CONF_RAIN_DRY = "rain_dry_minutes"
 CONF_MIN_RUN = "min_run_minutes"
+CONF_MIN_TEMP = "min_temperature"
 
 DEFAULT_ACTIVE_INTERVAL = 60  # s, while the mower is outside
 DEFAULT_IDLE_INTERVAL = 300  # s, while it sits in the station
@@ -35,3 +36,4 @@ DEFAULT_RAIN_LEAD = 30  # min: be home this long before forecast rain
 DEFAULT_RAIN_DRY = 60  # min: let the grass dry after rain
 DEFAULT_MIN_RUN = 45  # min: shorter runs are not worth starting
 FORECAST_EVERY = 900  # s
+DEFAULT_MIN_TEMP = 5  # °C: colder (or snow/hail) counts like rain; -20 = off

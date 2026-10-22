@@ -401,3 +401,13 @@ async def test_last_values_survive_restart(hass, fake_ble):
     await hass.async_block_till_done()
     assert hass.states.get("sensor.sileno_minimo_250_total_cutting_time").state == "8.3"
     assert hass.states.get("sensor.sileno_minimo_250_last_contact").state not in ("unknown", "unavailable")
+
+
+async def test_frost_status_and_no_start(hass):
+    _weather(hass)
+    hass.states.async_set("weather.test", "sunny", {"temperature": 1.0})
+    entry = await _setup(hass, RAIN_OPTS | {"min_temperature": 5})
+    assert hass.states.get("sensor.sileno_minimo_250_rain_guard").state == "frost"
+    FakeMower.log.clear()
+    await entry.runtime_data.start_mowing(2)
+    assert "SetOverrideMow" not in _cmds()

@@ -28,11 +28,13 @@ from .const import (
     CONF_GRACE_MINUTES,
     CONF_IDLE_INTERVAL,
     CONF_MIN_RUN,
+    CONF_MIN_TEMP,
     CONF_RAIN_DRY,
     CONF_RAIN_LEAD,
     CONF_SCHEDULE_ENTITY,
     CONF_WEATHER_ENTITY,
     DEFAULT_MIN_RUN,
+    DEFAULT_MIN_TEMP,
     DEFAULT_RAIN_DRY,
     DEFAULT_RAIN_LEAD,
     FORECAST_EVERY,
@@ -135,6 +137,7 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
         self.rain = logic.RainState()
         self._forecast_at = 0.0
         self._spells: list = []
+        self.frost = False
         self._slow_at = 0.0
         self._tasks_at = 0.0
         self._schedule_attempts = 0
@@ -558,12 +561,17 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
                     "weather", "get_forecasts", {"type": "hourly"},
                     target={"entity_id": entity_id}, blocking=True, return_response=True,
                 )
-                self._spells = logic.rain_spells(resp[entity_id]["forecast"], dt_util.parse_datetime)
+                self._spells = logic.rain_spells(
+                    resp[entity_id]["forecast"], dt_util.parse_datetime, self._min_temp()
+                )
                 self._forecast_at = time.monotonic()
             except (HomeAssistantError, KeyError) as err:
                 LOGGER.warning("Wettervorhersage nicht lesbar: %s", err)
         state = self.hass.states.get(entity_id)
-        raining_now = state is not None and state.state in logic.RAIN_CONDITIONS
+        self.frost = state is not None and logic.is_cold(
+            state.attributes.get("temperature"), state.state, self._min_temp()
+        )
+        raining_now = state is not None and state.state in logic.RAIN_CONDITIONS or self.frost
         now = dt_util.utcnow()
         last_end = self.prefs["last_rain_end"]
         new = logic.rain_state(
@@ -582,9 +590,15 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
             )
         self.rain = new
 
+    def _min_temp(self) -> float | None:
+        value = self._opt(CONF_MIN_TEMP, DEFAULT_MIN_TEMP)
+        return None if value is None or value <= -20 else float(value)
+
     def rain_status(self) -> str:
         if not self.rain_enabled:
             return "off"
+        if self.frost:
+            return "frost"
         return self.rain.status(dt_util.utcnow(), timedelta(minutes=self._opt(CONF_RAIN_LEAD, DEFAULT_RAIN_LEAD)))
 
     async def _rain_guard(self, m: Mower, d: MowerData) -> None:
@@ -608,7 +622,7 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
                 await ask(m, "SetMode", mode=logic.MODE_HOME)
                 d.mode = logic.MODE_HOME
             await ask(m, "StartTrigger")
-            self._correction("rain", "Regen: Rasi fährt heim", True)
+            self._correction("rain", "Regen/Frost: Rasi fährt heim", True)
             return
 
         # 2. In the station on its own schedule: keep it there while it rains / is wet.
@@ -623,7 +637,7 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
             and d.next_start <= park_until
         ):
             await ask(m, "SetOverridePark", duration=max(60, int((park_until - now).total_seconds())))
-            self._correction("rain", "Regen: Rasi bleibt in der Station", False)
+            self._correction("rain", "Regen/Frost: Rasi bleibt in der Station", False)
             return
 
         # 3. HA wanted a run (or one was interrupted): start once dry and still worth it.

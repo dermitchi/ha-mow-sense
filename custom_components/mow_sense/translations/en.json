@@ -59,12 +59,14 @@
           "weather_entity": "Weather (rain guard)",
           "rain_lead_minutes": "Home before rain",
           "rain_dry_minutes": "Drying time after rain",
-          "min_run_minutes": "Shortest worthwhile run"
+          "min_run_minutes": "Shortest worthwhile run",
+          "min_temperature": "Not below"
         },
         "data_description": {
           "schedule_entity": "Optional. A schedule helper whose time blocks are written into the mower. Whatever the Gardena app or anything else sets gets overwritten. Empty = leave the mower's schedule alone.",
           "grace_minutes": "Bluetooth drops out now and then. Live values stay until this much time has passed without contact.",
-          "weather_entity": "Hourly forecast. Mower stays home when rain is due, is home before it starts and mows on once it is dry and still worth it. Empty = off."
+          "weather_entity": "Hourly forecast. Mower stays home when rain is due, is home before it starts and mows on once it is dry and still worth it. Empty = off.",
+          "min_temperature": "Colder than this (or snow/hail) counts like rain: no start, home in time. -20 = off."
         }
       }
     }
@@ -186,7 +188,8 @@
           "clear": "Clear",
           "rain_soon": "Rain soon",
           "raining": "Raining",
-          "drying": "Drying"
+          "drying": "Drying",
+          "frost": "Frost"
         },
         "state_attributes": {
           "next_rain": {

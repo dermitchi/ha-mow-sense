@@ -23,12 +23,14 @@ from .const import (
     CONF_GRACE_MINUTES,
     CONF_IDLE_INTERVAL,
     CONF_MIN_RUN,
+    CONF_MIN_TEMP,
     CONF_RAIN_DRY,
     CONF_RAIN_LEAD,
     CONF_SCHEDULE_ENTITY,
     CONF_WEATHER_ENTITY,
     DEFAULT_ACTIVE_INTERVAL,
     DEFAULT_MIN_RUN,
+    DEFAULT_MIN_TEMP,
     DEFAULT_RAIN_DRY,
     DEFAULT_RAIN_LEAD,
     DEFAULT_GRACE_MINUTES,
@@ -204,6 +206,9 @@ class MowSenseOptionsFlow(OptionsFlow):
                         (CONF_MIN_RUN, DEFAULT_MIN_RUN, 10, 240),
                     )
                 },
+                vol.Required(CONF_MIN_TEMP, default=opts.get(CONF_MIN_TEMP, DEFAULT_MIN_TEMP)): selector.NumberSelector(
+                    selector.NumberSelectorConfig(min=-20, max=15, step=1, unit_of_measurement="°C", mode=selector.NumberSelectorMode.BOX)
+                ),
                 vol.Required(
                     CONF_ACTIVE_INTERVAL, default=opts.get(CONF_ACTIVE_INTERVAL, DEFAULT_ACTIVE_INTERVAL)
                 ): selector.NumberSelector(

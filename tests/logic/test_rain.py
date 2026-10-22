@@ -55,3 +55,19 @@ def test_drizzle_below_threshold_ignored():
 def test_actual_rain_without_forecast():
     s = state(T0, fc(), raining=True)
     assert s.raining and s.must_go_home(T0)
+
+
+def test_frost_hours_block_like_rain():
+    f = fc()
+    for e in f[:3]:
+        e["temperature"] = 2.0
+    for e in f[3:]:
+        e["temperature"] = 9.0
+    spells = L.rain_spells(f, datetime.fromisoformat, min_temp=5)
+    s = L.rain_state(T0, False, spells, None, LEAD, DRY)
+    assert s.raining and s.blocked_until == T0 + timedelta(hours=4)
+    assert not L.rain_spells(f, datetime.fromisoformat, min_temp=None)
+
+
+def test_snow_is_cold():
+    assert L.is_cold(10, "snowy", 5) and L.is_cold(4.9, "sunny", 5) and not L.is_cold(4.9, "sunny", None)

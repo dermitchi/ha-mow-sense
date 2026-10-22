@@ -335,15 +335,27 @@ class RainState:
         return "clear"
 
 
-def _is_rain(entry: dict) -> bool:
+FROST_CONDITIONS = {"snowy", "hail", "snowy-rainy"}
+
+
+def is_cold(temperature: float | None, condition: str | None, min_temp: float | None) -> bool:
+    """Frost/snow: no mowing (frozen grass breaks)."""
+    if min_temp is None:
+        return False
+    return condition in FROST_CONDITIONS or (temperature is not None and temperature < min_temp)
+
+
+def _is_rain(entry: dict, min_temp: float | None = None) -> bool:
+    if is_cold(entry.get("temperature"), entry.get("condition"), min_temp):
+        return True
     return entry.get("condition") in RAIN_CONDITIONS or (entry.get("precipitation") or 0) >= RAIN_MM
 
 
-def rain_spells(forecast: list[dict], parse) -> list[tuple[datetime, datetime]]:
-    """Hourly forecast -> merged (start, end) spells of rain."""
+def rain_spells(forecast: list[dict], parse, min_temp: float | None = None) -> list[tuple[datetime, datetime]]:
+    """Hourly forecast -> merged (start, end) spells of rain (and frost if min_temp is set)."""
     spells: list[list[datetime]] = []
     for entry in forecast:
-        if not _is_rain(entry):
+        if not _is_rain(entry, min_temp):
             continue
         start = parse(entry["datetime"])
         end = start + timedelta(hours=1)

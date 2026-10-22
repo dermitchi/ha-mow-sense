@@ -51,7 +51,8 @@
         "state": {
           "clear": "mdi:weather-sunny",
           "off": "mdi:umbrella-closed-outline",
-          "drying": "mdi:water-off-outline"
+          "drying": "mdi:water-off-outline",
+          "frost": "mdi:snowflake"
         }
       }
     },

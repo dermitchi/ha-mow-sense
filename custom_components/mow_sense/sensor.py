@@ -226,7 +226,7 @@ class RainGuard(MowSenseEntity, SensorEntity):
     """off | clear | rain_soon | raining | drying"""
 
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["off", "clear", "rain_soon", "raining", "drying"]
+    _attr_options = ["off", "clear", "rain_soon", "raining", "drying", "frost"]
 
     @property
     def available(self) -> bool:
