@@ -59,6 +59,7 @@ class MowSenseMower(MowSenseEntity, LawnMowerEntity):
         d = self.coordinator.data
         return {
             "connected": self.coordinator.connected,
+            "reachability": self.coordinator.reachability(),
             "automatic": self.coordinator.prefs["automatic"],
             "mode": logic.MODES.get(d.mode) if d else None,
             "waiting_for_dry_until": (self.coordinator.prefs.get("pending") or {}).get("until"),

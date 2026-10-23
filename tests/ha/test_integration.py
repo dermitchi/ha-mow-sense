@@ -7,6 +7,7 @@ from importlib.resources import files
 import json
 from dataclasses import replace
 from datetime import timedelta
+from habluetooth import BaseHaRemoteScanner
 from unittest.mock import MagicMock, patch
 
 from automower_ble.protocol import ResponseResult
@@ -149,7 +150,9 @@ def fake_ble():
         "battery": 80, "charging": True, "state": logic.STATE_RESTRICTED, "activity": logic.ACT_PARKED,
         "mode": logic.MODE_AUTO, "override": (0, 0, 0), "tasks": [],
     }
-    present = {"on": True}
+    present = {"on": True, "proxy": True}
+    proxy = MagicMock(spec=BaseHaRemoteScanner, source="AA:BB:CC:00:11:22", connectable=True)
+    proxy.name = "bluetooth-proxy"
     with (
         patch("custom_components.mow_sense.client.Mower", FakeMower),
         patch("homeassistant.components.bluetooth.async_ble_device_from_address",
@@ -158,6 +161,12 @@ def fake_ble():
         patch("homeassistant.components.bluetooth.async_register_callback", return_value=lambda: None),
         patch("homeassistant.components.bluetooth.async_track_unavailable", return_value=lambda: None),
         patch("custom_components.mow_sense.client.close_stale_connections_by_address"),
+        patch("homeassistant.components.bluetooth.async_current_scanners",
+              side_effect=lambda *a: [proxy] if present["proxy"] else []),
+        patch("homeassistant.components.bluetooth.async_scanner_by_source",
+              side_effect=lambda h, src: proxy if present["proxy"] and src == proxy.source else None),
+        patch("homeassistant.components.bluetooth.async_last_service_info",
+              side_effect=lambda *a, **k: MagicMock(source=proxy.source) if present["on"] else None),
     ):
         yield present
 
@@ -193,18 +202,42 @@ async def test_keeps_values_when_out_of_range(hass, fake_ble):
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=10))
     await hass.async_block_till_done()
     assert hass.states.get("lawn_mower.sileno_minimo_250").state == "docked"
-    # after the grace time the live state goes unavailable
+    assert hass.states.get("sensor.sileno_minimo_250_state").state == "restricted"
+    assert hass.states.get("sensor.sileno_minimo_250_reachability").state == "mower_off"
+    # after the grace time: the reason instead of "unavailable", last values stay
     with patch("homeassistant.util.dt.utcnow", return_value=dt_util.utcnow() + timedelta(minutes=45)):
         async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=45))
         await hass.async_block_till_done()
-        assert hass.states.get("lawn_mower.sileno_minimo_250").state == "unavailable"
+        assert hass.states.get("lawn_mower.sileno_minimo_250").state == "docked"
+        assert hass.states.get("sensor.sileno_minimo_250_state").state == "mower_off"
+        assert hass.states.get("sensor.sileno_minimo_250_activity").state == "mower_off"
+        battery = hass.states.get("sensor.sileno_minimo_250_battery")
+        assert battery.state == "80" and "values_from" in battery.attributes
+        assert hass.states.get("sensor.sileno_minimo_250_remaining_charging_time").state == "unknown"
+        assert not [s.entity_id for s in hass.states.async_all() if s.state == "unavailable"]
+
+
+async def test_proxy_offline_shows_right_away(hass, fake_ble):
+    entry = await _setup(hass)
+    assert entry.runtime_data.prefs["proxy"] == "AA:BB:CC:00:11:22"
+    assert hass.states.get("sensor.sileno_minimo_250_reachability").state == "online"
+    fake_ble["proxy"] = False
+    fake_ble["on"] = False
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=10))
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.sileno_minimo_250_reachability").state == "proxy_offline"
+    assert hass.states.get("sensor.sileno_minimo_250_state").state == "proxy_offline"
+    assert hass.states.get("sensor.sileno_minimo_250_battery").state == "80"
 
 
 async def test_setup_when_mower_off(hass, fake_ble):
     fake_ble["on"] = False
     entry = await _setup(hass)
     assert entry.state.name == "LOADED"
-    assert hass.states.get("lawn_mower.sileno_minimo_250").state == "unavailable"
+    assert hass.states.get("lawn_mower.sileno_minimo_250").state == "unknown"
+    assert hass.states.get("sensor.sileno_minimo_250_state").state == "mower_off"
+    assert hass.states.get("sensor.sileno_minimo_250_reachability").state == "mower_off"
+    assert not [s.entity_id for s in hass.states.async_all() if s.state == "unavailable"]
     assert hass.states.get("switch.sileno_minimo_250_automatic_own_schedule").state == "on"
     assert hass.states.get("binary_sensor.sileno_minimo_250_in_bluetooth_range").state == "off"
 
@@ -313,7 +346,7 @@ async def test_cellar_never_gets_start_trigger(hass):
 async def test_blade_counter(hass):
     entry = await _setup(hass)
     c = entry.runtime_data
-    assert hass.states.get("sensor.sileno_minimo_250_blades_since_change").state == "unavailable"
+    assert hass.states.get("sensor.sileno_minimo_250_blades_since_change").state == "unknown"
     await hass.services.async_call("button", "press", {"entity_id": "button.sileno_minimo_250_blades_changed"}, blocking=True)
     assert c.prefs["blade_base"] == round(30000 / 3600, 2)
     assert hass.states.get("sensor.sileno_minimo_250_blades_since_change").state == "0.0"

@@ -30,9 +30,7 @@ class Refresh(MowSenseEntity, ButtonEntity):
 
 
 class ParkFurtherNotice(MowSenseEntity, ButtonEntity):
-    @property
-    def available(self) -> bool:
-        return self.coordinator.in_range
+    # Pressing it while offline gives a clear error instead of a greyed-out button.
 
     async def async_press(self) -> None:
         await self.coordinator.park("further_notice")

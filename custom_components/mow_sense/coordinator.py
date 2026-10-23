@@ -10,6 +10,7 @@ from typing import Any
 from automower_ble.error_codes import ErrorCodes
 from automower_ble.models import MowerModels
 from automower_ble.mower import Mower
+from habluetooth import BaseHaRemoteScanner
 
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
@@ -17,7 +18,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.storage import Store
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from . import logic
@@ -133,13 +134,14 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
             "blade_base": None,  # total cutting hours at that change
             "pending": None,  # {"until": iso} – HA wants a run, waiting for dry weather
             "last_rain_end": None,  # iso
+            "proxy": None,  # source of the Bluetooth proxy that last heard the mower
         }
         self.rain = logic.RainState()
         self._forecast_at = 0.0
         self._spells: list = []
         self.frost = False
-        self._slow_at = 0.0
-        self._tasks_at = 0.0
+        self._slow_at = float("-inf")  # first poll always reads statistics
+        self._tasks_at = float("-inf")
         self._schedule_attempts = 0
         self._wanted_tasks: list[logic.Task] | None = None
         self._unsub_ble = None
@@ -169,6 +171,7 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
 
     @callback
     def _on_advertisement(self, info, change) -> None:
+        self._remember_proxy(info.source)
         if not self.in_range:
             # Back from being switched off / out of range: poll right away.
             self.in_range = True
@@ -180,6 +183,45 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
         self.in_range = False
         self.connected = False
         self.async_update_listeners()
+
+    @callback
+    def _remember_proxy(self, source: str | None) -> None:
+        scanner = bluetooth.async_scanner_by_source(self.hass, source) if source else None
+        if isinstance(scanner, BaseHaRemoteScanner) and self.prefs["proxy"] != source:
+            self.prefs["proxy"] = source
+            self._store.async_delay_save(self._stored, 10)
+
+    def proxy_online(self) -> bool:
+        if source := self.prefs["proxy"]:
+            return bluetooth.async_scanner_by_source(self.hass, source) is not None
+        # Proxy not known yet: any connectable proxy counts.
+        return any(
+            isinstance(s, BaseHaRemoteScanner) and s.connectable
+            for s in bluetooth.async_current_scanners(self.hass)
+        )
+
+    def proxy_name(self) -> str | None:
+        source = self.prefs["proxy"]
+        scanner = bluetooth.async_scanner_by_source(self.hass, source) if source else None
+        return scanner.name if scanner else source
+
+    def reachability(self) -> str:
+        """online | no_answer | mower_off | proxy_offline"""
+        if self.connected:
+            return "online"
+        if not self.proxy_online():
+            return "proxy_offline"
+        if not self.in_range:
+            return "mower_off"
+        return "no_answer"
+
+    def offline_reason(self) -> str | None:
+        """Shown instead of live values: right away when the proxy is gone,
+        otherwise once the last contact is older than the grace time."""
+        reason = self.reachability()
+        if reason == "proxy_offline" or (reason != "online" and not self.fresh()):
+            return reason
+        return None
 
     async def save_prefs(self) -> None:
         await self._store.async_save(self._stored())
@@ -220,13 +262,14 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
             self.connected = False
             self.last_problem = str(err)
             self._set_interval(None)
-            if self.data is None:
-                raise UpdateFailed(str(err)) from err
+            # No UpdateFailed: entities show why the mower is offline instead.
             LOGGER.debug("Behalte letzte Werte: %s", err)
             return self.data
         self.connected = True
         self.last_problem = None
         self.last_contact = data.fetched_at
+        if info := bluetooth.async_last_service_info(self.hass, self.link.address, connectable=True):
+            self._remember_proxy(info.source)
         self._store.async_delay_save(self._stored, 60)
         self._update_device(data)
         self._set_interval(data)
@@ -376,7 +419,7 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
         if wanted != self._wanted_tasks:
             self._wanted_tasks = wanted
             self._schedule_attempts = 0
-            self._tasks_at = 0.0
+            self._tasks_at = float("-inf")
         if d.tasks is not None and now_mono - self._tasks_at < TASKS_EVERY:
             return
         d.tasks = await self._read_tasks(m)
@@ -516,7 +559,7 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
 
     async def resync_schedule(self) -> None:
         self._schedule_attempts = 0
-        self._tasks_at = 0.0
+        self._tasks_at = float("-inf")
         await self.async_request_refresh()
 
     # --- blades --------------------------------------------------------------------

@@ -24,7 +24,8 @@ class Charging(MowSenseEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool | None:
-        return self.coordinator.data.charging
+        c = self.coordinator
+        return None if c.data is None or c.offline_reason() else c.data.charging
 
 
 class Problem(MowSenseEntity, BinarySensorEntity):
@@ -33,6 +34,8 @@ class Problem(MowSenseEntity, BinarySensorEntity):
     @property
     def is_on(self) -> bool | None:
         d = self.coordinator.data
+        if d is None:
+            return None
         return bool(d.error_code) or logic.lawn_mower_activity(d.state, d.activity) == "error"
 
 
@@ -41,11 +44,6 @@ class Connected(MowSenseEntity, BinarySensorEntity):
 
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _needs_fresh = False
-
-    @property
-    def available(self) -> bool:
-        return True
 
     @property
     def is_on(self) -> bool:
@@ -63,10 +61,6 @@ class InRange(MowSenseEntity, BinarySensorEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
-    def available(self) -> bool:
-        return True
-
-    @property
     def is_on(self) -> bool:
         return self.coordinator.in_range
 
@@ -75,11 +69,6 @@ class BladesDue(MowSenseEntity, BinarySensorEntity):
     """On once the blades ran their interval since the last change."""
 
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
-    _needs_fresh = False
-
-    @property
-    def available(self) -> bool:
-        return self.coordinator.blade_due() is not None
 
     @property
     def is_on(self) -> bool | None:

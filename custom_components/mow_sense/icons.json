@@ -2,10 +2,20 @@
   "entity": {
     "sensor": {
       "state": {
-        "default": "mdi:robot-mower"
+        "default": "mdi:robot-mower",
+        "state": {
+          "mower_off": "mdi:power-off",
+          "proxy_offline": "mdi:bluetooth-off",
+          "no_answer": "mdi:bluetooth-off"
+        }
       },
       "activity": {
-        "default": "mdi:robot-mower-outline"
+        "default": "mdi:robot-mower-outline",
+        "state": {
+          "mower_off": "mdi:power-off",
+          "proxy_offline": "mdi:bluetooth-off",
+          "no_answer": "mdi:bluetooth-off"
+        }
       },
       "mode": {
         "default": "mdi:cog"
@@ -53,6 +63,14 @@
           "off": "mdi:umbrella-closed-outline",
           "drying": "mdi:water-off-outline",
           "frost": "mdi:snowflake"
+        }
+      },
+      "reachability": {
+        "default": "mdi:bluetooth-connect",
+        "state": {
+          "mower_off": "mdi:power-off",
+          "proxy_offline": "mdi:bluetooth-off",
+          "no_answer": "mdi:bluetooth-off"
         }
       }
     },

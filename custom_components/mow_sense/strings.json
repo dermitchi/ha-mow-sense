@@ -74,7 +74,12 @@
   "entity": {
     "sensor": {
       "battery": {
-        "name": "Battery"
+        "name": "Battery",
+        "state_attributes": {
+          "values_from": {
+            "name": "Values from"
+          }
+        }
       },
       "state": {
         "name": "State",
@@ -87,7 +92,15 @@
           "paused": "Paused",
           "in_operation": "In operation",
           "restricted": "Restricted (schedule/park)",
-          "error": "Error"
+          "error": "Error",
+          "mower_off": "Mower off",
+          "proxy_offline": "Bluetooth proxy offline",
+          "no_answer": "No connection"
+        },
+        "state_attributes": {
+          "values_from": {
+            "name": "Values from"
+          }
         }
       },
       "activity": {
@@ -99,7 +112,15 @@
           "mowing": "Mowing",
           "going_home": "Going home",
           "parked": "Parked",
-          "stopped_in_garden": "Stopped in garden"
+          "stopped_in_garden": "Stopped in garden",
+          "mower_off": "Mower off",
+          "proxy_offline": "Bluetooth proxy offline",
+          "no_answer": "No connection"
+        },
+        "state_attributes": {
+          "values_from": {
+            "name": "Values from"
+          }
         }
       },
       "mode": {
@@ -110,6 +131,11 @@
           "home": "Park until further notice",
           "demo": "Demo",
           "poi": "POI"
+        },
+        "state_attributes": {
+          "values_from": {
+            "name": "Values from"
+          }
         }
       },
       "error": {
@@ -120,29 +146,67 @@
           },
           "last_message_time": {
             "name": "Last message at"
+          },
+          "values_from": {
+            "name": "Values from"
           }
         }
       },
       "next_start": {
-        "name": "Next start"
+        "name": "Next start",
+        "state_attributes": {
+          "values_from": {
+            "name": "Values from"
+          }
+        }
       },
       "remaining_charge": {
-        "name": "Remaining charging time"
+        "name": "Remaining charging time",
+        "state_attributes": {
+          "values_from": {
+            "name": "Values from"
+          }
+        }
       },
       "cutting_time": {
-        "name": "Total cutting time"
+        "name": "Total cutting time",
+        "state_attributes": {
+          "values_from": {
+            "name": "Values from"
+          }
+        }
       },
       "running_time": {
-        "name": "Total running time"
+        "name": "Total running time",
+        "state_attributes": {
+          "values_from": {
+            "name": "Values from"
+          }
+        }
       },
       "blade_time": {
-        "name": "Blade usage"
+        "name": "Blade usage",
+        "state_attributes": {
+          "values_from": {
+            "name": "Values from"
+          }
+        }
       },
       "collisions": {
-        "name": "Collisions"
+        "name": "Collisions",
+        "state_attributes": {
+          "values_from": {
+            "name": "Values from"
+          }
+        }
       },
       "charging_cycles": {
-        "name": "Charging cycles"
+        "name": "Charging cycles",
+        "state_attributes": {
+          "values_from": {
+            "name": "Values from"
+          }
+        }
       },
       "schedule": {
         "name": "Schedule in mower",
@@ -206,6 +270,23 @@
           },
           "waiting_until": {
             "name": "Waiting to mow until"
+          }
+        }
+      },
+      "reachability": {
+        "name": "Reachability",
+        "state": {
+          "online": "Online",
+          "no_answer": "No connection",
+          "mower_off": "Mower off",
+          "proxy_offline": "Bluetooth proxy offline"
+        },
+        "state_attributes": {
+          "proxy": {
+            "name": "Proxy"
+          },
+          "last_problem": {
+            "name": "Last problem"
           }
         }
       }

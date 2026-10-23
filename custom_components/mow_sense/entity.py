@@ -11,8 +11,6 @@ from .coordinator import MowSenseCoordinator
 
 class MowSenseEntity(CoordinatorEntity[MowSenseCoordinator]):
     _attr_has_entity_name = True
-    # Live values go unavailable once the last contact is older than the grace time.
-    _needs_fresh = True
 
     def __init__(self, coordinator: MowSenseCoordinator, key: str) -> None:
         super().__init__(coordinator)
@@ -31,6 +29,6 @@ class MowSenseEntity(CoordinatorEntity[MowSenseCoordinator]):
 
     @property
     def available(self) -> bool:
-        if self.coordinator.data is None:
-            return False
-        return self.coordinator.fresh() if self._needs_fresh else True
+        # Never "unavailable": offline shows as a reason (Zustand, Tätigkeit,
+        # Erreichbarkeit) or as the last known value.
+        return True

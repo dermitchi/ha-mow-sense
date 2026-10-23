@@ -21,6 +21,8 @@ from . import MowSenseConfigEntry, logic
 from .coordinator import ERROR_NAMES, MowerData, MowSenseCoordinator
 from .entity import MowSenseEntity
 
+OFFLINE = ["mower_off", "proxy_offline", "no_answer"]
+
 
 def _hours(key: str) -> Callable[[MowerData], Any]:
     return lambda d: round(d.stats[key] / 3600, 1) if key in d.stats else None
@@ -29,7 +31,8 @@ def _hours(key: str) -> Callable[[MowerData], Any]:
 @dataclass(frozen=True, kw_only=True)
 class MowSensor(SensorEntityDescription):
     value: Callable[[MowerData], Any]
-    fresh: bool = True
+    # While offline: "keep" last value, "reason" why offline, "none" = unknown
+    offline: str = "keep"
 
 
 SENSORS = (
@@ -43,14 +46,16 @@ SENSORS = (
     MowSensor(
         key="state",
         device_class=SensorDeviceClass.ENUM,
-        options=list(logic.STATES.values()),
+        options=list(logic.STATES.values()) + OFFLINE,
         value=lambda d: logic.STATES.get(d.state),
+        offline="reason",
     ),
     MowSensor(
         key="activity",
         device_class=SensorDeviceClass.ENUM,
-        options=list(logic.ACTIVITIES.values()),
+        options=list(logic.ACTIVITIES.values()) + OFFLINE,
         value=lambda d: logic.ACTIVITIES.get(d.activity),
+        offline="reason",
     ),
     MowSensor(
         key="mode",
@@ -72,6 +77,7 @@ SENSORS = (
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.MINUTES,
         value=lambda d: d.remaining_charge_min,
+        offline="none",
     ),
     MowSensor(
         key="cutting_time",
@@ -79,7 +85,6 @@ SENSORS = (
         native_unit_of_measurement=UnitOfTime.HOURS,
         state_class=SensorStateClass.TOTAL_INCREASING,
         value=_hours("totalCuttingTime"),
-        fresh=False,
     ),
     MowSensor(
         key="running_time",
@@ -88,7 +93,6 @@ SENSORS = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         entity_category=EntityCategory.DIAGNOSTIC,
         value=_hours("totalRunningTime"),
-        fresh=False,
     ),
     MowSensor(
         key="blade_time",
@@ -96,21 +100,18 @@ SENSORS = (
         native_unit_of_measurement=UnitOfTime.HOURS,
         state_class=SensorStateClass.TOTAL_INCREASING,
         value=_hours("cuttingBladeUsageTime"),
-        fresh=False,
     ),
     MowSensor(
         key="collisions",
         state_class=SensorStateClass.TOTAL_INCREASING,
         entity_category=EntityCategory.DIAGNOSTIC,
         value=lambda d: d.stats.get("numberOfCollisions"),
-        fresh=False,
     ),
     MowSensor(
         key="charging_cycles",
         state_class=SensorStateClass.TOTAL_INCREASING,
         entity_category=EntityCategory.DIAGNOSTIC,
         value=lambda d: d.stats.get("numberOfChargingCycles"),
-        fresh=False,
     ),
 )
 
@@ -121,7 +122,7 @@ async def async_setup_entry(
     c = entry.runtime_data
     add([Sensor(c, desc) for desc in SENSORS]
         + [Schedule(c, "schedule"), LastContact(c, "last_contact"), BladeHours(c, "blade_hours"), BladeChanged(c, "blade_changed_at"),
-           RainGuard(c, "rain_guard")])
+           RainGuard(c, "rain_guard"), Reachability(c, "reachability")])
 
 
 class Sensor(MowSenseEntity, SensorEntity):
@@ -130,37 +131,46 @@ class Sensor(MowSenseEntity, SensorEntity):
     def __init__(self, coordinator: MowSenseCoordinator, desc: MowSensor) -> None:
         super().__init__(coordinator, desc.key)
         self.entity_description = desc
-        self._needs_fresh = desc.fresh
 
     @property
     def native_value(self):
-        return self.entity_description.value(self.coordinator.data)
+        desc = self.entity_description
+        d = self.coordinator.data
+        reason = self.coordinator.offline_reason() if desc.offline != "keep" else None
+        if desc.offline == "reason" and (reason or d is None):
+            return reason or self.coordinator.reachability()
+        if d is None or (reason and desc.offline == "none"):
+            return None
+        return desc.value(d)
 
     @property
     def extra_state_attributes(self):
         d = self.coordinator.data
+        if d is None:
+            return None
+        attrs = {}
+        if not self.coordinator.fresh():
+            attrs["values_from"] = d.fetched_at
         if self.entity_description.key == "error" and d.last_message:
-            return {
-                "last_message": d.last_message["code"],
-                "last_message_time": d.last_message["time"],
-            }
-        return None
+            attrs["last_message"] = d.last_message["code"]
+            attrs["last_message_time"] = d.last_message["time"]
+        return attrs or None
 
 
 class Schedule(MowSenseEntity, SensorEntity):
     """The schedule stored in the mower, plus whether it matches HA."""
 
-    _needs_fresh = False
-
     @property
     def native_value(self):
+        if self.coordinator.data is None:
+            return None
         tasks = self.coordinator.data.tasks
         return None if tasks is None else logic.schedule_summary(tasks)
 
     @property
     def extra_state_attributes(self):
         c = self.coordinator
-        tasks = c.data.tasks or []
+        tasks = (c.data.tasks if c.data else None) or []
         return {
             "sync": c.schedule_status,
             "tasks": [t.label() for t in tasks],
@@ -171,11 +181,6 @@ class Schedule(MowSenseEntity, SensorEntity):
 class LastContact(MowSenseEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _needs_fresh = False
-
-    @property
-    def available(self) -> bool:
-        return True
 
     @property
     def native_value(self):
@@ -188,11 +193,6 @@ class BladeHours(MowSenseEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.DURATION
     _attr_native_unit_of_measurement = UnitOfTime.HOURS
     _attr_suggested_display_precision = 1
-    _needs_fresh = False
-
-    @property
-    def available(self) -> bool:
-        return self.coordinator.blade_hours() is not None
 
     @property
     def native_value(self):
@@ -213,10 +213,6 @@ class BladeChanged(MowSenseEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
     @property
-    def available(self) -> bool:
-        return True
-
-    @property
     def native_value(self):
         value = self.coordinator.prefs["blade_changed"]
         return dt_util.parse_datetime(value) if value else None
@@ -227,10 +223,6 @@ class RainGuard(MowSenseEntity, SensorEntity):
 
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options = ["off", "clear", "rain_soon", "raining", "drying", "frost"]
-
-    @property
-    def available(self) -> bool:
-        return True
 
     @property
     def native_value(self) -> str:
@@ -246,3 +238,19 @@ class RainGuard(MowSenseEntity, SensorEntity):
             "home_by": r.leave_by,
             "waiting_until": (self.coordinator.prefs.get("pending") or {}).get("until"),
         }
+
+
+class Reachability(MowSenseEntity, SensorEntity):
+    """online | no_answer | mower_off | proxy_offline"""
+
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["online", *OFFLINE]
+
+    @property
+    def native_value(self) -> str:
+        return self.coordinator.reachability()
+
+    @property
+    def extra_state_attributes(self):
+        c = self.coordinator
+        return {"proxy": c.proxy_name(), "last_problem": c.last_problem}
