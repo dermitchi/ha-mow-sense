@@ -369,6 +369,10 @@
     "sync_schedule": {
       "name": "Write schedule",
       "description": "Read the mower now and write the schedule helper into it if it differs."
+    },
+    "read_log": {
+      "name": "Read error log",
+      "description": "Read the mower's own message log (errors with time)."
     }
   }
 }

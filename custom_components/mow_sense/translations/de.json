@@ -369,6 +369,10 @@
     "sync_schedule": {
       "name": "Zeitplan übertragen",
       "description": "Mäher jetzt abfragen und den Zeitplan-Helfer übertragen, falls er abweicht."
+    },
+    "read_log": {
+      "name": "Fehlerprotokoll lesen",
+      "description": "Liest das Meldungsprotokoll aus dem Mäher (Fehler mit Uhrzeit)."
     }
   }
 }

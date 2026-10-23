@@ -122,6 +122,9 @@
     },
     "sync_schedule": {
       "service": "mdi:calendar-sync"
+    },
+    "read_log": {
+      "service": "mdi:clipboard-text-clock"
     }
   }
 }

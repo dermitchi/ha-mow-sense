@@ -557,6 +557,30 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
             LOGGER.info("Automatik gespeichert, wird beim nächsten Kontakt gesetzt (%s)", err)
             self.async_update_listeners()
 
+    async def read_log(self) -> list[dict[str, Any]]:
+        """The mower's own message log (errors with time), newest first."""
+        if not self.link.in_range():
+            raise HomeAssistantError("Mäher nicht in Bluetooth-Reichweite (aus oder zu weit weg)")
+        tz = dt_util.get_default_time_zone()
+
+        async def work(m: Mower) -> list[dict[str, Any]]:
+            log = []
+            for i in range(await ask(m, "GetNumberOfMessages") or 0):
+                msg = await ask(m, "GetMessage", messageId=i)
+                if isinstance(msg, dict) and msg.get("time"):
+                    log.append({
+                        "time": logic.from_mower_time(msg["time"], tz).isoformat(),
+                        "code": msg.get("code"),
+                        "text": logic.error_text(msg.get("code"), ERROR_NAMES),
+                        "severity": msg.get("severity"),
+                    })
+            return log
+
+        try:
+            return await self.link.run(work)
+        except LinkError as err:
+            raise HomeAssistantError(str(err)) from err
+
     async def resync_schedule(self) -> None:
         self._schedule_attempts = 0
         self._tasks_at = float("-inf")

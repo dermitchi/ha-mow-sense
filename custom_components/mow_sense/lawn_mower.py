@@ -11,7 +11,7 @@ from homeassistant.components.lawn_mower import (
     LawnMowerEntity,
     LawnMowerEntityFeature,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, SupportsResponse
 from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -38,6 +38,9 @@ async def async_setup_entry(
         "async_park",
     )
     platform.async_register_entity_service("sync_schedule", {}, "async_sync_schedule")
+    platform.async_register_entity_service(
+        "read_log", {}, "async_read_log", supports_response=SupportsResponse.ONLY
+    )
 
 
 class MowSenseMower(MowSenseEntity, LawnMowerEntity):
@@ -82,3 +85,6 @@ class MowSenseMower(MowSenseEntity, LawnMowerEntity):
 
     async def async_sync_schedule(self) -> None:
         await self.coordinator.resync_schedule()
+
+    async def async_read_log(self) -> dict[str, Any]:
+        return {"messages": await self.coordinator.read_log()}

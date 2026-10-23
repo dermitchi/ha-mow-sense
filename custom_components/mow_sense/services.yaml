@@ -34,3 +34,8 @@ sync_schedule:
     entity:
       integration: mow_sense
       domain: lawn_mower
+read_log:
+  target:
+    entity:
+      integration: mow_sense
+      domain: lawn_mower

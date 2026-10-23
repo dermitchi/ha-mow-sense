@@ -116,7 +116,10 @@ class FakeMower:
             "GetTime": s.get("clock", logic.to_mower_time(dt_util.now())),
             "GetNumberOfTasks": len(s["tasks"]),
             "GetMessage": {"time": 0, "code": 0, "severity": 0},
+            "GetNumberOfMessages": len(s.get("log", [])),
         }
+        if name == "GetMessage" and s.get("log"):
+            return s["log"][kw["messageId"]]
         if name in simple:
             return simple[name]
         if name == "GetTask":
@@ -457,3 +460,18 @@ async def test_host_adapter_is_ignored(hass, fake_ble):
     assert not FakeMower.instances, "no session through the host adapter"
     assert hass.states.get("binary_sensor.sileno_minimo_250_in_bluetooth_range").state == "off"
     assert hass.states.get("sensor.sileno_minimo_250_reachability").state == "mower_off"
+
+
+async def test_read_log(hass):
+    now = logic.to_mower_time(dt_util.now())
+    FakeMower.state["log"] = [
+        {"time": now - 60, "code": 78, "severity": 1},
+        {"time": now - 3600, "code": 29, "severity": 1},
+    ]
+    await _setup(hass)
+    resp = await hass.services.async_call(
+        DOMAIN, "read_log", {"entity_id": "lawn_mower.sileno_minimo_250"}, blocking=True, return_response=True
+    )
+    log = resp["lawn_mower.sileno_minimo_250"]["messages"]
+    assert [m["code"] for m in log] == [78, 29]
+    assert all(m["text"] and m["time"] for m in log)
