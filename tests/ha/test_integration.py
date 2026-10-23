@@ -7,7 +7,7 @@ from importlib.resources import files
 import json
 from dataclasses import replace
 from datetime import timedelta
-from habluetooth import BaseHaRemoteScanner
+from habluetooth import BaseHaRemoteScanner, BaseHaScanner
 from unittest.mock import MagicMock, patch
 
 from automower_ble.protocol import ResponseResult
@@ -153,11 +153,14 @@ def fake_ble():
     present = {"on": True, "proxy": True}
     proxy = MagicMock(spec=BaseHaRemoteScanner, source="AA:BB:CC:00:11:22", connectable=True)
     proxy.name = "bluetooth-proxy"
+    host = MagicMock(spec=BaseHaScanner, source="hci0", connectable=True)
+    present["seen_by"] = [MagicMock(scanner=proxy, ble_device=MagicMock(), advertisement=MagicMock(rssi=-70))]
+    present["host"] = host
     with (
         patch("custom_components.mow_sense.client.Mower", FakeMower),
-        patch("homeassistant.components.bluetooth.async_ble_device_from_address",
-              side_effect=lambda *a, **k: MagicMock() if present["on"] else None),
-        patch("homeassistant.components.bluetooth.async_address_present", side_effect=lambda *a, **k: present["on"]),
+        patch("homeassistant.components.bluetooth.async_scanner_devices_by_address",
+              side_effect=lambda *a, **k: [d for d in present["seen_by"] if present["on"]
+                                           and (d.scanner is host or present["proxy"])]),
         patch("homeassistant.components.bluetooth.async_register_callback", return_value=lambda: None),
         patch("homeassistant.components.bluetooth.async_track_unavailable", return_value=lambda: None),
         patch("custom_components.mow_sense.client.close_stale_connections_by_address"),
@@ -444,3 +447,13 @@ async def test_frost_status_and_no_start(hass):
     FakeMower.log.clear()
     await entry.runtime_data.start_mowing(2)
     assert "SetOverrideMow" not in _cmds()
+
+
+async def test_host_adapter_is_ignored(hass, fake_ble):
+    """Only the ESP32 proxy counts; the Pi's own chip is too far from the garden."""
+    fake_ble["seen_by"] = [MagicMock(scanner=fake_ble["host"], ble_device=MagicMock(),
+                                     advertisement=MagicMock(rssi=-40))]
+    await _setup(hass)
+    assert not FakeMower.instances, "no session through the host adapter"
+    assert hass.states.get("binary_sensor.sileno_minimo_250_in_bluetooth_range").state == "off"
+    assert hass.states.get("sensor.sileno_minimo_250_reachability").state == "mower_off"

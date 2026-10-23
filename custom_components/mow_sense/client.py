@@ -18,6 +18,8 @@ from automower_ble.protocol import ResponseResult
 from bleak import BleakError
 from bleak_retry_connector import close_stale_connections_by_address
 
+from habluetooth import BaseHaRemoteScanner
+
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant
 
@@ -52,14 +54,24 @@ class MowerLink:
         self.pin = pin
         self._lock = asyncio.Lock()
 
+    def _proxy_device(self):
+        """The mower as heard by a Bluetooth proxy (ESP32), strongest signal first.
+
+        The host's own adapter is ignored: it is too far from the garden, and
+        sessions through it only ran into timeouts.
+        """
+        seen = [
+            d for d in bluetooth.async_scanner_devices_by_address(self.hass, self.address, connectable=True)
+            if isinstance(d.scanner, BaseHaRemoteScanner)
+        ]
+        return max(seen, key=lambda d: d.advertisement.rssi).ble_device if seen else None
+
     def in_range(self) -> bool:
-        return bluetooth.async_address_present(self.hass, self.address, connectable=True)
+        return self._proxy_device() is not None
 
     async def run(self, work: Callable[[Mower], Awaitable[T]]) -> T:
         async with self._lock:
-            device = bluetooth.async_ble_device_from_address(
-                self.hass, self.address, connectable=True
-            )
+            device = self._proxy_device()
             if device is None:
                 raise NotInRange("Mäher nicht in Bluetooth-Reichweite")
             mower = Mower(self.channel_id, self.address, self.pin)

@@ -172,7 +172,7 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
     @callback
     def _on_advertisement(self, info, change) -> None:
         self._remember_proxy(info.source)
-        if not self.in_range:
+        if not self.in_range and self.link.in_range():
             # Back from being switched off / out of range: poll right away.
             self.in_range = True
             LOGGER.debug("Mäher wieder in Reichweite")
