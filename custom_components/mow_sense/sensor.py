@@ -236,6 +236,7 @@ class RainGuard(MowSenseEntity, SensorEntity):
             "rain_end": r.rain_end,
             "dry_from": r.blocked_until,
             "home_by": r.leave_by,
+            "rain_sensor_wet": self.coordinator.sensor_wet,
             "waiting_until": (self.coordinator.prefs.get("pending") or {}).get("until"),
         }
 

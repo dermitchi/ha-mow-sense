@@ -71,3 +71,42 @@ def test_frost_hours_block_like_rain():
 
 def test_snow_is_cold():
     assert L.is_cold(10, "snowy", 5) and L.is_cold(4.9, "sunny", 5) and not L.is_cold(4.9, "sunny", None)
+
+
+# --- rain sensor confirms the weather ---------------------------------------
+WET, DRYA = timedelta(minutes=2), timedelta(minutes=5)
+
+
+def wet(is_on, since_min, last=None, now=T0):
+    return L.sensor_wet(is_on, now - timedelta(minutes=since_min) if since_min is not None else None, now, last, WET, DRYA)
+
+
+def test_sensor_needs_two_minutes_wet():
+    assert wet(True, 1)[0] is False  # one second blip / just touched
+    assert wet(True, 3) == (True, T0)
+
+
+def test_sensor_stays_wet_five_minutes_after_drying():
+    assert wet(False, 1, last=T0 - timedelta(minutes=4))[0] is True
+    assert wet(False, 9, last=T0 - timedelta(minutes=6))[0] is False
+
+
+def test_sensor_unusable_is_none():
+    assert wet(None, None) == (None, None)
+
+
+def test_forecast_rain_but_sensor_dry_is_not_raining():
+    f = L.rain_spells(fc(0, 1), datetime.fromisoformat)
+    s = L.rain_state(T0, False, f, None, LEAD, DRY, confirmed=True)
+    assert not s.raining and not s.must_go_home(T0)
+
+
+def test_forecast_rain_and_sensor_wet_is_raining():
+    f = L.rain_spells(fc(0, 1), datetime.fromisoformat)
+    s = L.rain_state(T0, True, f, None, LEAD, DRY, confirmed=True)
+    assert s.raining and s.rain_end == T0 + timedelta(hours=2)
+
+
+def test_no_sensor_forecast_still_counts():
+    f = L.rain_spells(fc(0, 1), datetime.fromisoformat)
+    assert L.rain_state(T0, False, f, None, LEAD, DRY, confirmed=None).raining

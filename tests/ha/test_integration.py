@@ -475,3 +475,44 @@ async def test_read_log(hass):
     log = resp["lawn_mower.sileno_minimo_250"]["messages"]
     assert [m["code"] for m in log] == [78, 29]
     assert all(m["text"] and m["time"] for m in log)
+
+
+SENSOR_OPTS = {**RAIN_OPTS, "rain_sensor": "binary_sensor.regen"}
+
+
+async def test_weather_rain_but_sensor_dry_keeps_mower_out(hass):
+    _weather(hass, rainy_hours_from_now=(0, 1), now_state="rainy")
+    hass.states.async_set("binary_sensor.regen", "off")
+    FakeMower.state.update(state=logic.STATE_IN_OPERATION, activity=logic.ACT_MOWING, charging=False)
+    await _setup(hass, SENSOR_OPTS)
+    assert "SetOverridePark" not in _cmds()
+    assert hass.states.get("sensor.sileno_minimo_250_rain_guard").state != "raining"
+
+
+async def test_weather_and_sensor_both_wet_sends_mower_home(hass, monkeypatch):
+    from custom_components.mow_sense import coordinator as co
+
+    monkeypatch.setattr(co, "SENSOR_WET_AFTER", 0)
+    _weather(hass, rainy_hours_from_now=(0, 1), now_state="rainy")
+    hass.states.async_set("binary_sensor.regen", "on")
+    FakeMower.state.update(state=logic.STATE_IN_OPERATION, activity=logic.ACT_MOWING, charging=False)
+    await _setup(hass, SENSOR_OPTS)
+    assert any(c == "SetOverridePark" for c in _cmds())
+    assert hass.states.get("sensor.sileno_minimo_250_rain_guard").state == "raining"
+
+
+async def test_sensor_wet_but_weather_dry_is_no_rain(hass, monkeypatch):
+    from custom_components.mow_sense import coordinator as co
+
+    monkeypatch.setattr(co, "SENSOR_WET_AFTER", 0)
+    _weather(hass, rainy_hours_from_now=())
+    hass.states.async_set("binary_sensor.regen", "on")
+    await _setup(hass, SENSOR_OPTS)
+    assert hass.states.get("sensor.sileno_minimo_250_rain_guard").state == "clear"
+
+
+async def test_sensor_unavailable_falls_back_to_weather(hass):
+    _weather(hass, rainy_hours_from_now=(0, 1), now_state="rainy")
+    hass.states.async_set("binary_sensor.regen", "unavailable")
+    await _setup(hass, SENSOR_OPTS)
+    assert hass.states.get("sensor.sileno_minimo_250_rain_guard").state == "raining"

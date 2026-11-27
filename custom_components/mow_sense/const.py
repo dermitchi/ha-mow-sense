@@ -13,6 +13,7 @@ CONF_ACTIVE_INTERVAL = "active_interval"
 CONF_IDLE_INTERVAL = "idle_interval"
 CONF_GRACE_MINUTES = "grace_minutes"
 CONF_WEATHER_ENTITY = "weather_entity"
+CONF_RAIN_SENSOR = "rain_sensor"
 CONF_RAIN_LEAD = "rain_lead_minutes"
 CONF_RAIN_DRY = "rain_dry_minutes"
 CONF_MIN_RUN = "min_run_minutes"
@@ -37,3 +38,6 @@ DEFAULT_RAIN_DRY = 60  # min: let the grass dry after rain
 DEFAULT_MIN_RUN = 45  # min: shorter runs are not worth starting
 FORECAST_EVERY = 900  # s
 DEFAULT_MIN_TEMP = 5  # °C: colder (or snow/hail) counts like rain; -20 = off
+
+SENSOR_WET_AFTER = 2  # min: sensor must be wet this long to count
+SENSOR_DRY_AFTER = 5  # min: and dry this long before it counts as dry again

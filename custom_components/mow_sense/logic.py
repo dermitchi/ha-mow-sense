@@ -373,8 +373,13 @@ def rain_state(
     last_rain_end: datetime | None,
     lead: timedelta,
     dry: timedelta,
+    confirmed: bool | None = None,
 ) -> RainState:
+    """confirmed: None = no rain sensor; otherwise forecast rain "now" only counts when raining_now
+    (weather AND sensor agree) is true."""
     current = next(((s, e) for s, e in spells if s <= now < e), None)
+    if confirmed is not None and not raining_now:
+        current = None
     if raining_now and current is None:
         current = (now, now + timedelta(hours=1))  # it rains although not forecast
     if current:
@@ -388,3 +393,20 @@ def rain_state(
     if upcoming is None:
         return RainState(False, None, None, blocked, None)
     return RainState(False, upcoming[0], upcoming[1], blocked, upcoming[0] - lead)
+
+
+def sensor_wet(
+    is_on: bool | None,
+    on_since: datetime | None,
+    now: datetime,
+    last_wet: datetime | None,
+    wet_after: timedelta,
+    dry_after: timedelta,
+) -> tuple[bool | None, datetime | None]:
+    """Debounce a wet/dry sensor. None in = sensor unusable -> (None, last_wet).
+    Wet counts after `wet_after` of "on"; it stays wet until `dry_after` after the last confirmed wet moment."""
+    if is_on is None:
+        return None, last_wet
+    if is_on and on_since is not None and now - on_since >= wet_after:
+        last_wet = now
+    return last_wet is not None and now - last_wet < dry_after, last_wet

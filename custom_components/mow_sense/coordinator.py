@@ -32,12 +32,15 @@ from .const import (
     CONF_MIN_TEMP,
     CONF_RAIN_DRY,
     CONF_RAIN_LEAD,
+    CONF_RAIN_SENSOR,
     CONF_SCHEDULE_ENTITY,
     CONF_WEATHER_ENTITY,
     DEFAULT_MIN_RUN,
     DEFAULT_MIN_TEMP,
     DEFAULT_RAIN_DRY,
     DEFAULT_RAIN_LEAD,
+    SENSOR_DRY_AFTER,
+    SENSOR_WET_AFTER,
     FORECAST_EVERY,
     DEFAULT_ACTIVE_INTERVAL,
     DEFAULT_BLADE_HOURS,
@@ -137,6 +140,8 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
             "proxy": None,  # source of the Bluetooth proxy that last heard the mower
         }
         self.rain = logic.RainState()
+        self.sensor_wet: bool | None = None  # None = no (usable) rain sensor
+        self._last_wet = None
         self._forecast_at = 0.0
         self._spells: list = []
         self.frost = False
@@ -638,14 +643,20 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
         self.frost = state is not None and logic.is_cold(
             state.attributes.get("temperature"), state.state, self._min_temp()
         )
-        raining_now = state is not None and state.state in logic.RAIN_CONDITIONS or self.frost
         now = dt_util.utcnow()
+        in_spell = any(s <= now < e for s, e in self._spells)
+        weather_rain = state is not None and (state.state in logic.RAIN_CONDITIONS or in_spell)
+        self.sensor_wet = self._read_sensor(now)
+        confirmed = None if self.sensor_wet is None else True
+        # Rain sensor set and working: weather and sensor must agree (weather alone otherwise).
+        raining_now = (weather_rain if self.sensor_wet is None else weather_rain and self.sensor_wet) or self.frost
         last_end = self.prefs["last_rain_end"]
         new = logic.rain_state(
             now, raining_now, self._spells,
             dt_util.parse_datetime(last_end) if last_end else None,
             timedelta(minutes=self._opt(CONF_RAIN_LEAD, DEFAULT_RAIN_LEAD)),
             timedelta(minutes=self._opt(CONF_RAIN_DRY, DEFAULT_RAIN_DRY)),
+            confirmed,
         )
         if self.rain.raining and not new.raining:
             self.prefs["last_rain_end"] = now.isoformat()
@@ -654,8 +665,20 @@ class MowSenseCoordinator(DataUpdateCoordinator[MowerData | None]):
                 now, False, self._spells, now,
                 timedelta(minutes=self._opt(CONF_RAIN_LEAD, DEFAULT_RAIN_LEAD)),
                 timedelta(minutes=self._opt(CONF_RAIN_DRY, DEFAULT_RAIN_DRY)),
+                confirmed,
             )
         self.rain = new
+
+    def _read_sensor(self, now) -> bool | None:
+        entity_id = self._opt(CONF_RAIN_SENSOR, None)
+        state = self.hass.states.get(entity_id) if entity_id else None
+        if state is None or state.state not in ("on", "off"):
+            return None
+        wet, self._last_wet = logic.sensor_wet(
+            state.state == "on", state.last_changed, now, self._last_wet,
+            timedelta(minutes=SENSOR_WET_AFTER), timedelta(minutes=SENSOR_DRY_AFTER),
+        )
+        return wet
 
     def _min_temp(self) -> float | None:
         value = self._opt(CONF_MIN_TEMP, DEFAULT_MIN_TEMP)

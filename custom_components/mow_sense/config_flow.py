@@ -26,6 +26,7 @@ from .const import (
     CONF_MIN_TEMP,
     CONF_RAIN_DRY,
     CONF_RAIN_LEAD,
+    CONF_RAIN_SENSOR,
     CONF_SCHEDULE_ENTITY,
     CONF_WEATHER_ENTITY,
     DEFAULT_ACTIVE_INTERVAL,
@@ -196,6 +197,9 @@ class MowSenseOptionsFlow(OptionsFlow):
                 vol.Optional(CONF_WEATHER_ENTITY): selector.EntitySelector(
                     selector.EntitySelectorConfig(domain="weather")
                 ),
+                vol.Optional(CONF_RAIN_SENSOR): selector.EntitySelector(
+                    selector.EntitySelectorConfig(domain="binary_sensor")
+                ),
                 **{
                     vol.Required(key, default=opts.get(key, default)): selector.NumberSelector(
                         selector.NumberSelectorConfig(min=lo, max=hi, step=5, unit_of_measurement="min", mode=selector.NumberSelectorMode.BOX)
@@ -230,6 +234,6 @@ class MowSenseOptionsFlow(OptionsFlow):
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
                 schema,
-                {CONF_SCHEDULE_ENTITY: opts.get(CONF_SCHEDULE_ENTITY), CONF_WEATHER_ENTITY: opts.get(CONF_WEATHER_ENTITY)},
+                {CONF_SCHEDULE_ENTITY: opts.get(CONF_SCHEDULE_ENTITY), CONF_WEATHER_ENTITY: opts.get(CONF_WEATHER_ENTITY), CONF_RAIN_SENSOR: opts.get(CONF_RAIN_SENSOR)},
             ),
         )

@@ -57,6 +57,7 @@
           "idle_interval": "Abfrage in der Station",
           "grace_minutes": "Letzte Werte behalten ohne Kontakt",
           "weather_entity": "Wetter (Regenschutz)",
+          "rain_sensor": "Regensensor (bestätigt das Wetter)",
           "rain_lead_minutes": "Zuhause vor Regen",
           "rain_dry_minutes": "Trockenzeit nach Regen",
           "min_run_minutes": "Kürzester lohnender Lauf",
@@ -66,6 +67,7 @@
           "schedule_entity": "Optional. Ein Zeitplan-Helfer, dessen Zeitblöcke in den Mäher geschrieben werden. Was die Gardena-App oder sonst etwas einträgt, wird überschrieben. Leer = Zeitplan im Mäher nicht anfassen.",
           "grace_minutes": "Bluetooth bricht ab und zu ab. Live-Werte bleiben so lange stehen, bis so lange kein Kontakt war.",
           "weather_entity": "Stündliche Vorhersage. Bei angesagtem Regen fährt er nicht los, ist vor Regenbeginn zuhause und mäht danach weiter, wenn es trocken ist und sich noch lohnt. Leer = aus.",
+          "rain_sensor": "Optionaler Nass/Trocken-Sensor draußen. Dann zählt Regen nur, wenn Wetter UND Sensor ihn melden (2 Min nass / 5 Min trocken zum Umschalten). Sensor nicht verfügbar = nur Wetter. Leer = nur Wetter.",
           "min_temperature": "Kälter als das (oder Schnee/Hagel) zählt wie Regen: kein Start, rechtzeitig heim. -20 = aus."
         }
       }
